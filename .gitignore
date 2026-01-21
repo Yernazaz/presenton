@@ -11,7 +11,7 @@ app_data
 tmp
 debug
 .fastembed_cache
-
+*.pyc
 generated_models
 nltk
 chroma
