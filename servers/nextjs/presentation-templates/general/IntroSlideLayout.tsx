@@ -64,11 +64,11 @@ const IntroSlideLayout: React.FC<IntroSlideLayoutProps> = ({ data: slideData }) 
                     {/* Left Section - Image */}
                     <div className="flex-1 flex items-center justify-center pr-8">
                         <div className="w-full max-w-lg h-80 rounded-2xl overflow-hidden shadow-lg">
-                            <img
-                                src={slideData?.image?.__image_url__ || ''}
-                                alt={slideData?.image?.__image_prompt__ || slideData?.title || ''}
-                                className="w-full h-full object-cover"
-                            />
+	                            <img
+	                                src={slideData?.image?.__image_url__ || ''}
+	                                alt={slideData?.image?.__image_prompt__ || slideData?.title || ''}
+	                                className="w-full h-full object-contain"
+	                            />
                         </div>
                     </div>
 

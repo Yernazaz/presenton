@@ -20,6 +20,26 @@ import {
   PptxConnectorType
 } from "@/types/pptx_models";
 
+const SLIDE_WIDTH = 1280;
+const SLIDE_HEIGHT = 720;
+
+function clampPosition(position: PptxPositionModel): PptxPositionModel | null {
+  const left = Math.max(0, Math.round(position.left));
+  const top = Math.max(0, Math.round(position.top));
+
+  const maxWidth = SLIDE_WIDTH - left;
+  const maxHeight = SLIDE_HEIGHT - top;
+
+  const width = Math.min(Math.round(position.width), maxWidth);
+  const height = Math.min(Math.round(position.height), maxHeight);
+
+  if (!isFinite(width) || !isFinite(height) || width <= 0 || height <= 0) {
+    return null;
+  }
+
+  return { left, top, width, height };
+}
+
 function convertTextAlignToPptxAlignment(textAlign?: string): PptxAlignment | undefined {
   if (!textAlign) return undefined;
 
@@ -103,13 +123,17 @@ function convertElementToPptxShape(
   return convertToAutoShapeBox(element);
 }
 
-function convertToTextBox(element: ElementAttributes): PptxTextBoxModel {
-  const position: PptxPositionModel = {
+function convertToTextBox(element: ElementAttributes): PptxTextBoxModel | null {
+  const rawPosition: PptxPositionModel = {
     left: Math.round(element.position?.left ?? 0),
     top: Math.round(element.position?.top ?? 0),
     width: Math.round(element.position?.width ?? 0),
     height: Math.round(element.position?.height ?? 0)
   };
+  const position = clampPosition(rawPosition);
+  if (!position) {
+    return null;
+  }
 
   const fill: PptxFillModel | undefined = element.background?.color ? {
     color: element.background.color,
@@ -142,13 +166,18 @@ function convertToTextBox(element: ElementAttributes): PptxTextBoxModel {
   };
 }
 
-function convertToAutoShapeBox(element: ElementAttributes): PptxAutoShapeBoxModel {
-  const position: PptxPositionModel = {
+function convertToAutoShapeBox(element: ElementAttributes): PptxAutoShapeBoxModel | null {
+  const rawPosition: PptxPositionModel = {
     left: Math.round(element.position?.left ?? 0),
     top: Math.round(element.position?.top ?? 0),
     width: Math.round(element.position?.width ?? 0),
     height: Math.round(element.position?.height ?? 0)
   };
+  const position = clampPosition(rawPosition);
+  if (!position) {
+    return null;
+  }
+
   const fill: PptxFillModel | undefined = element.background?.color ? {
     color: element.background.color,
     opacity: element.background.opacity ?? 1.0
@@ -205,16 +234,22 @@ function convertToAutoShapeBox(element: ElementAttributes): PptxAutoShapeBoxMode
   };
 }
 
-function convertToPictureBox(element: ElementAttributes): PptxPictureBoxModel {
-  const position: PptxPositionModel = {
+function convertToPictureBox(element: ElementAttributes): PptxPictureBoxModel | null {
+  const rawPosition: PptxPositionModel = {
     left: Math.round(element.position?.left ?? 0),
     top: Math.round(element.position?.top ?? 0),
     width: Math.round(element.position?.width ?? 0),
     height: Math.round(element.position?.height ?? 0)
   };
+  const position = clampPosition(rawPosition);
+  if (!position) {
+    return null;
+  }
 
   const objectFit: PptxObjectFitModel = {
-    fit: element.objectFit ? (element.objectFit as PptxObjectFitEnum) : PptxObjectFitEnum.CONTAIN
+    // Always avoid cropping; prefer showing the full image.
+    // In our pipeline, "fill" means stretch to box (no crop).
+    fit: PptxObjectFitEnum.FILL
   };
 
   const picture: PptxPictureModel = {
@@ -236,13 +271,17 @@ function convertToPictureBox(element: ElementAttributes): PptxPictureBoxModel {
   };
 }
 
-function convertToConnector(element: ElementAttributes): PptxConnectorModel {
-  const position: PptxPositionModel = {
+function convertToConnector(element: ElementAttributes): PptxConnectorModel | null {
+  const rawPosition: PptxPositionModel = {
     left: Math.round(element.position?.left ?? 0),
     top: Math.round(element.position?.top ?? 0),
     width: Math.round(element.position?.width ?? 0),
     height: Math.round(element.position?.height ?? 0)
   };
+  const position = clampPosition(rawPosition);
+  if (!position) {
+    return null;
+  }
 
   return {
     shape_type: "connector",

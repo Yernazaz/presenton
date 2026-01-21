@@ -215,8 +215,8 @@ const EditableLayoutWrapper: React.FC<EditableLayoutWrapperProps> = ({
                     // Add hover effects without changing layout
                     htmlImg.style.cursor = 'pointer';
                     htmlImg.style.transition = 'opacity 0.2s, transform 0.2s';
-                    htmlImg.style.objectFit = propertiesData?.initialObjectFit;
-                    htmlImg.style.objectPosition = `${propertiesData?.initialFocusPoint?.x}% ${propertiesData?.initialFocusPoint?.y}%`;
+                    htmlImg.style.objectFit = propertiesData?.initialObjectFit ?? "fill";
+                    htmlImg.style.objectPosition = `${propertiesData?.initialFocusPoint?.x ?? 50}% ${propertiesData?.initialFocusPoint?.y ?? 50}%`;
 
                     const mouseEnterHandler = () => {
                         htmlImg.style.opacity = '0.8';
@@ -445,8 +445,8 @@ const EditableLayoutWrapper: React.FC<EditableLayoutWrapperProps> = ({
                     initialImage={activeEditor.src}
                     slideIndex={slideIndex}
                     promptContent={activeEditor.data?.__image_prompt__ || ''}
-                    imageIdx={0}
-                    properties={null}
+                    imageIdx={parseInt(activeEditor.id.split('-').pop() || "0")}
+                    properties={properties}
                     onClose={handleEditorClose}
                     onImageChange={handleImageChange}
                     onFocusPointClick={handleFocusPointClick}

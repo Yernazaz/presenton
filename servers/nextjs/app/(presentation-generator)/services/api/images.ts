@@ -42,6 +42,17 @@ export class ImagesApi {
       throw error;
     }
   }
+  static async getImageDetails(url: string): Promise<ImageAssetResponse> {
+    try {
+      // Encode URL component to handle special characters
+      const response = await fetch(`/api/v1/ppt/images/details?url=${encodeURIComponent(url)}`);
+      return await ApiResponseHandler.handleResponse(response, "Failed to get image details") as ImageAssetResponse;
+    } catch (error:any) {
+      // Quietly fail if details not found (might be external image)
+      console.log("Get image details error:", error);
+      throw error;
+    }
+  }
 }
 
 

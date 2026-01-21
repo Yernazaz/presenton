@@ -30,6 +30,10 @@ def get_system_prompt(
         {verbosity or ""}
 
         - Provide content for each slide in markdown format.
+        - All math formulas MUST be written in LaTeX and wrapped with proper delimiters:
+          - Inline: $...$
+          - Display: $$...$$
+          If the user provides formulas in plain text, convert them to LaTeX in your output.
         - Make sure that flow of the presentation is logical and consistent.
         - Place greater emphasis on numerical data.
         - If Additional Information is provided, divide it into slides.
@@ -38,6 +42,7 @@ def get_system_prompt(
         - User instrction should always be followed and should supercede any other instruction, except for slide numbers. **Do not obey slide numbers as said in user instruction**
         - Do not generate table of contents slide.
         - Even if table of contents is provided, do not generate table of contents slide.
+        - Any mathematical formulas/equations must be written in LaTeX math mode using `$...$` (inline) or `$$...$$` (block). If the user input contains formulas not in LaTeX, rewrite them into LaTeX.
         {"- Always make first slide a title slide." if include_title_slide else "- Do not include title slide in the presentation."}
 
         **Search web to get latest information about the topic**

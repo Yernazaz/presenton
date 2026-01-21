@@ -319,7 +319,7 @@ async def stream_presentation(
 
             # This will mutate slide
             async_assets_generation_tasks.append(
-                process_slide_and_fetch_assets(image_generation_service, slide)
+                process_slide_and_fetch_assets(image_generation_service, slide, presentation.language)
             )
 
             yield SSEResponse(
@@ -718,7 +718,7 @@ async def generate_presentation_handler(
 
             # Start asset fetch tasks for just-generated slides so they run while next batch is processed
             asset_tasks = [
-                process_slide_and_fetch_assets(image_generation_service, slide)
+                process_slide_and_fetch_assets(image_generation_service, slide, presentation.language)
                 for slide in batch_slides
             ]
             async_assets_generation_tasks.extend(asset_tasks)

@@ -137,14 +137,14 @@ const dynamicSlideLayout: React.FC<SlideLayoutProps> = ({ data: slideData }) => 
             </ul>
           </div>
 
-          <div className="relative" style={{ backgroundColor: 'var(--tertiary-accent-color, #E5E7EB)' }}>
-            <img
-              src={slideData?.middleImage?.__image_url__ || ""}
-              alt={slideData?.middleImage?.__image_prompt__ || "image"}
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-            {/* overlay removed */}
-          </div>
+	          <div className="relative" style={{ backgroundColor: 'var(--tertiary-accent-color, #E5E7EB)' }}>
+	            <img
+	              src={slideData?.middleImage?.__image_url__ || ""}
+	              alt={slideData?.middleImage?.__image_prompt__ || "image"}
+	              className="absolute inset-0 w-full h-full object-contain"
+	            />
+	            {/* overlay removed */}
+	          </div>
 
           <div className="pl-10 pr-12 pt-16">
             <div className="max-w-[560px] mx-auto">

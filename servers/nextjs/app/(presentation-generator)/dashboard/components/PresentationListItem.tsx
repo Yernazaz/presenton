@@ -16,7 +16,7 @@ export const PresentationListItem: React.FC<Presentation> = ({
                     <img
                         src={thumbnail}
                         alt={title}
-                        className="object-cover"
+                        className="object-fill"
                     />
                 </div>
 

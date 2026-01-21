@@ -130,11 +130,11 @@ const dynamicSlideLayout: React.FC<SlideLayoutProps> = ({ data: slideData }) => 
         </div>
 
         <div className="relative flex-1 flex items-center justify-center">
-          <img
-            src={slideData?.backgroundImage?.__image_url__ || ""}
-            alt={slideData?.backgroundImage?.__image_prompt__ || "background"}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
+	          <img
+	            src={slideData?.backgroundImage?.__image_url__ || ""}
+	            alt={slideData?.backgroundImage?.__image_prompt__ || "background"}
+	            className="absolute inset-0 w-full h-full object-contain"
+	          />
           <div className="absolute inset-0" style={{ backgroundColor: 'rgba(255,255,255,0.6)' }}></div>
           <div className="relative w-[900px] max-w-[92%] rounded-md shadow-[0_30px_90px_rgba(0,0,0,0.18)]" style={{ backgroundColor: 'var(--primary-accent-color, #1B8C2D)' }}>
             <div className="p-10 grid grid-cols-[72px,1fr] gap-6">

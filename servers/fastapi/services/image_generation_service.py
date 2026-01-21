@@ -12,6 +12,7 @@ from utils.get_env import (
     get_dall_e_3_quality_env,
     get_gpt_image_1_5_quality_env,
     get_pexels_api_key_env,
+    get_unsplash_api_key_env,
 )
 from utils.get_env import get_pixabay_api_key_env
 from utils.get_env import get_comfyui_url_env
@@ -29,11 +30,17 @@ from utils.image_provider import (
 import uuid
 
 
+# Global lock for OpenAI Agent (serialize requests to prevent breaking the agent)
+OPENAI_AGENT_LOCK = asyncio.Lock()
+
 class ImageGenerationService:
+    
     def __init__(self, output_directory: str):
         self.output_directory = output_directory
         self.is_image_generation_disabled = is_image_generation_disabled()
         self.image_gen_func = self.get_image_gen_func()
+    
+
 
     def get_image_gen_func(self):
         if self.is_image_generation_disabled:
@@ -58,26 +65,424 @@ class ImageGenerationService:
     def is_stock_provider_selected(self):
         return is_pixels_selected() or is_pixabay_selected()
 
+
+    async def search_via_openai_agent(
+        self, query: str, agent_url: str, language: str = "English"
+    ) -> list[str]:
+        """
+        Classify query using OpenAI Agent, then search images using Brave Search API.
+        Agent returns: action (search/generate) and semantic search_query.
+        Uses lock to prevent concurrent requests (agent can't handle parallel calls).
+        """
+        import aiohttp
+        print(f"🔍 Agent Classification: Analyzing '{query}' (language: {language})")
+        
+        # Serialize requests to prevent breaking the agent
+        async with OPENAI_AGENT_LOCK:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        f"{agent_url}/search",
+                        json={"query": query, "language": language},
+                        timeout=aiohttp.ClientTimeout(total=30)
+                    ) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            action = data.get("action")
+                            search_query = data.get("search_query")
+                            search_query_en = data.get("search_query_en")
+                            
+                            if action == "generate":
+                                print(f"🎨 Agent Decision: GENERATE (artistic/abstract content)")
+                                return []  # Empty list triggers AI generation
+                            
+                            elif action == "search":
+                                if search_query:
+                                    print(f"📚 Agent Decision: SEARCH with query: '{search_query}'")
+                                    # Search using Brave with the semantic query
+                                    try:
+                                        urls = await self._search_brave_images(
+                                            search_query, language=language
+                                        )
+                                        source = "brave"
+                                        if not urls:
+                                            # Fall back to public sources that may work better with English queries.
+                                            fallback_query = (
+                                                search_query_en
+                                                if isinstance(search_query_en, str) and search_query_en.strip()
+                                                else search_query
+                                            )
+                                            urls = await self._search_wikimedia_images(fallback_query, count=5)
+                                            source = "wikimedia"
+                                        if not urls:
+                                            urls = await self._search_pexels_images(
+                                                (search_query_en or search_query), count=5
+                                            )
+                                            source = "pexels"
+                                        if not urls:
+                                            urls = await self._search_unsplash_images(
+                                                (search_query_en or search_query), count=5
+                                            )
+                                            source = "unsplash"
+                                        if not urls:
+                                            urls = await self._search_pixabay_images(
+                                                (search_query_en or search_query), count=5
+                                            )
+                                            source = "pixabay"
+                                        if not urls:
+                                            urls = await self._search_duckduckgo_images(
+                                                (search_query_en or search_query), language=language
+                                            )
+                                            source = "duckduckgo"
+                                        if urls:
+                                            print(f"✓ {source} found {len(urls)} images for '{search_query}'")
+                                            return urls
+                                        else:
+                                            print(f"✗ No images found for '{search_query}', falling back to generation")
+                                            return []
+                                    except Exception as e:
+                                        print(f"✗ Brave Search Error: {e}")
+                                        return []
+                                else:
+                                    print(f"⚠️ Agent: search action but no search_query, using generation")
+                                    return []
+                            else:
+                                print(f"⚠️ Agent: Unknown action '{action}', using generation")
+                                return []
+                        else:
+                            text = await response.text()
+                            print(f"✗ OpenAI Agent: HTTP {response.status} - {text}")
+            except Exception as e:
+                print(f"✗ OpenAI Agent Error: {e}")
+                
+        return []
+    
+    def _brave_search_language_params(self, language: str) -> dict:
+        """
+        Brave Search API language options.
+
+        Docs (images): https://api.search.brave.com/app/documentation/web-search/images
+        """
+        language_normalized = (language or "").strip().lower()
+        if (
+            "russian" in language_normalized
+            or "рус" in language_normalized
+            or language_normalized.startswith("ru")
+        ):
+            return {"country": "RU", "search_lang": "ru", "ui_lang": "ru-RU"}
+        if (
+            "kazakh" in language_normalized
+            or "қаз" in language_normalized
+            or "қазақ" in language_normalized
+            or language_normalized.startswith("kk")
+        ):
+            return {"country": "KZ", "search_lang": "kk", "ui_lang": "kk-KZ"}
+        return {"country": "US", "search_lang": "en", "ui_lang": "en-US"}
+
+    def _duckduckgo_region(self, language: str) -> str:
+        language_normalized = (language or "").strip().lower()
+        if (
+            "russian" in language_normalized
+            or "рус" in language_normalized
+            or language_normalized.startswith("ru")
+        ):
+            return "ru-ru"
+        if (
+            "kazakh" in language_normalized
+            or "қаз" in language_normalized
+            or "қазақ" in language_normalized
+            or language_normalized.startswith("kk")
+        ):
+            # DuckDuckGo does not consistently support kk; default to Kazakhstan/Russian locale.
+            return "kz-ru"
+        return "us-en"
+
+    async def _search_brave_images(self, query: str, language: str = "English") -> list[str]:
+        """Search images using Brave Search API."""
+        api_key = os.getenv("BRAVE_SEARCH_API_KEY")
+        if not api_key:
+            print("✗ Missing BRAVE_SEARCH_API_KEY")
+            return []
+
+        def _looks_like_image_url(url: str) -> bool:
+            try:
+                from urllib.parse import urlparse
+
+                path = (urlparse(url).path or "").lower()
+                for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff", ".svg"):
+                    if path.endswith(ext):
+                        return True
+                # Common CDN / image hosting paths without extensions.
+                if "/wp-content/uploads/" in path or "/images/" in path:
+                    return True
+            except Exception:
+                pass
+            return False
+
+        try:
+            # Brave Images API supports only: off|strict
+            params = {"q": query, "count": "5", "safesearch": "off"}
+            params.update(self._brave_search_language_params(language))
+
+            async with aiohttp.ClientSession(trust_env=True) as session:
+                async with session.get(
+                    "https://api.search.brave.com/res/v1/images/search",
+                    params=params,
+                    headers={
+                        "Accept": "application/json",
+                        "X-Subscription-Token": api_key,
+                        "User-Agent": "presenton/1.0",
+                    },
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        results = data.get("results") or []
+                        urls: list[str] = []
+                        for r in results:
+                            if not isinstance(r, dict):
+                                continue
+                            # Brave images results commonly use:
+                            # - r["url"] as the source page URL
+                            # - r["properties"]["url"] as the direct image URL
+                            candidates: list[str] = []
+
+                            props = r.get("properties")
+                            if isinstance(props, dict):
+                                v = props.get("url")
+                                if isinstance(v, str):
+                                    candidates.append(v)
+
+                            thumb = r.get("thumbnail")
+                            if isinstance(thumb, dict):
+                                v = thumb.get("src")
+                                if isinstance(v, str):
+                                    candidates.append(v)
+
+                            for k in ("image", "src", "url"):
+                                v = r.get(k)
+                                if isinstance(v, str):
+                                    candidates.append(v)
+
+                            picked = None
+                            for v in candidates:
+                                if not (isinstance(v, str) and v.startswith("http")):
+                                    continue
+                                if _looks_like_image_url(v):
+                                    picked = v
+                                    break
+                            if not picked:
+                                for v in candidates:
+                                    if isinstance(v, str) and v.startswith("http"):
+                                        picked = v
+                                        break
+                            if picked:
+                                urls.append(picked)
+                        return urls
+                    else:
+                        error_text = await response.text()
+                        print(f"✗ Brave API error: {response.status} - {error_text}")
+                        return []
+        except Exception as e:
+            print(f"✗ Brave API exception: {e}")
+            return []
+
+    async def _search_duckduckgo_images(
+        self, query: str, language: str = "English", max_results: int = 5
+    ) -> list[str]:
+        """
+        Fallback image search using DuckDuckGo.
+        Returns direct image URLs.
+        """
+        try:
+            from duckduckgo_search import DDGS  # type: ignore
+        except Exception as e:
+            print(f"✗ DuckDuckGo Search unavailable: {e}")
+            return []
+
+        region = self._duckduckgo_region(language)
+
+        def _run() -> list[str]:
+            urls: list[str] = []
+            with DDGS() as ddgs:
+                for r in ddgs.images(
+                    keywords=query,
+                    region=region,
+                    safesearch="moderate",
+                    max_results=max_results,
+                ):
+                    url = r.get("image")
+                    if isinstance(url, str) and url.startswith("http"):
+                        urls.append(url)
+            return urls
+
+        try:
+            urls = await asyncio.to_thread(_run)
+            if urls:
+                print(f"✓ DuckDuckGo found {len(urls)} images for '{query}' (region={region})")
+            else:
+                print(f"✗ DuckDuckGo: No images found for '{query}' (region={region})")
+            return urls
+        except Exception as e:
+            print(f"✗ DuckDuckGo search error: {e}")
+            return []
+
+    async def _search_wikimedia_images(self, query: str, count: int = 5) -> list[str]:
+        try:
+            from clients import wikimedia_client
+
+            results = await wikimedia_client.search_images(query, per_page=count)
+            urls = [img.url for img in results if getattr(img, "url", None)]
+            if urls:
+                print(f"✓ Wikimedia found {len(urls)} images for '{query}'")
+            else:
+                print(f"✗ Wikimedia: No images found for '{query}'")
+            return urls
+        except Exception as e:
+            print(f"✗ Wikimedia search error: {e}")
+            return []
+
+    async def _search_unsplash_images(self, query: str, count: int = 5) -> list[str]:
+        try:
+            from clients import unsplash_client
+
+            results = await unsplash_client.search_images(query, per_page=count)
+            urls = [img.url for img in results if getattr(img, "url", None)]
+            if urls:
+                print(f"✓ Unsplash found {len(urls)} images for '{query}'")
+            else:
+                print(f"✗ Unsplash: No images found for '{query}'")
+            return urls
+        except Exception as e:
+            print(f"✗ Unsplash search error: {e}")
+            return []
+
+    async def _search_pexels_images(self, query: str, count: int = 5) -> list[str]:
+        api_key = get_pexels_api_key_env()
+        if not api_key:
+            return []
+
+        try:
+            async with aiohttp.ClientSession(trust_env=True) as session:
+                async with session.get(
+                    "https://api.pexels.com/v1/search",
+                    params={"query": query, "per_page": str(count)},
+                    headers={"Authorization": api_key},
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        print(f"✗ Pexels API error: {response.status} - {error_text}")
+                        return []
+                    data = await response.json()
+                    photos = data.get("photos", []) or []
+                    urls: list[str] = []
+                    for photo in photos:
+                        if not isinstance(photo, dict):
+                            continue
+                        src = photo.get("src") or {}
+                        if not isinstance(src, dict):
+                            continue
+                        url = src.get("large") or src.get("original")
+                        if isinstance(url, str) and url:
+                            urls.append(url)
+                    if urls:
+                        print(f"✓ Pexels found {len(urls)} images for '{query}'")
+                    else:
+                        print(f"✗ Pexels: No images found for '{query}'")
+                    return urls
+        except Exception as e:
+            print(f"✗ Pexels search error: {e}")
+            return []
+
+    async def _search_pixabay_images(self, query: str, count: int = 5) -> list[str]:
+        api_key = get_pixabay_api_key_env()
+        if not api_key:
+            return []
+
+        try:
+            async with aiohttp.ClientSession(trust_env=True) as session:
+                async with session.get(
+                    "https://pixabay.com/api/",
+                    params={
+                        "key": api_key,
+                        "q": query,
+                        "image_type": "photo",
+                        "per_page": str(count),
+                    },
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        print(f"✗ Pixabay API error: {response.status} - {error_text}")
+                        return []
+                    data = await response.json()
+                    hits = data.get("hits", []) or []
+                    urls: list[str] = []
+                    for hit in hits:
+                        if not isinstance(hit, dict):
+                            continue
+                        url = hit.get("largeImageURL")
+                        if isinstance(url, str) and url:
+                            urls.append(url)
+                    if urls:
+                        print(f"✓ Pixabay found {len(urls)} images for '{query}'")
+                    else:
+                        print(f"✗ Pixabay: No images found for '{query}'")
+                    return urls
+        except Exception as e:
+            print(f"✗ Pixabay search error: {e}")
+            return []
+
+    async def search_multiple_sources(self, query: str, language: str = "English") -> list[str]:
+        """
+        Search images using OpenAI Agent.
+        Agent classifies (search/generate) and provides semantic query, 
+        then searches Google Images API.
+        """
+        import os
+        agent_url = os.getenv("OPENAI_AGENT_URL")
+        if agent_url:
+            results = await self.search_via_openai_agent(query, agent_url, language)
+            return results
+        
+        # No agent configured - return empty (fallback to generation)
+        return []
+
     async def generate_image(self, prompt: ImagePrompt) -> str | ImageAsset:
         """
         Generates an image based on the provided prompt.
-        - If no image generation function is available, returns a placeholder image.
-        - If the stock provider is selected, it uses the prompt directly,
-        otherwise it uses the full image prompt with theme.
-        - Output Directory is used for saving the generated image not the stock provider.
+        Uses OpenAI agent for classification (search vs generate).
         """
         if self.is_image_generation_disabled:
             print("Image generation is disabled. Using placeholder image.")
             return "/static/images/placeholder.jpg"
+            
+        # Get search prompt if needed
+        is_stock = self.is_stock_provider_selected()
+        image_prompt = prompt.get_image_prompt(with_theme=not is_stock)
+        
+        # Try to search using OpenAI agent
+        results = await self.search_multiple_sources(image_prompt, prompt.language)
+        
+        if results:
+            # Return first image with candidates in extras
+            return ImageAsset(
+                path=results[0],
+                is_uploaded=False,
+                extras={
+                    "prompt": prompt.prompt,
+                    "candidates": results,
+                    "source": "search"
+                }
+            )
 
+        # Fallback to generation
         if not self.image_gen_func:
             print("No image generation function found. Using placeholder image.")
             return "/static/images/placeholder.jpg"
 
-        image_prompt = prompt.get_image_prompt(
-            with_theme=not self.is_stock_provider_selected()
-        )
-        print(f"Request - Generating Image for {image_prompt}")
+        print(f"Generating image for: {image_prompt[:80]}...")
 
         try:
             if self.is_stock_provider_selected():
@@ -185,7 +590,8 @@ class ImageGenerationService:
     async def get_image_from_pexels(self, prompt: str) -> str:
         async with aiohttp.ClientSession(trust_env=True) as session:
             response = await session.get(
-                f"https://api.pexels.com/v1/search?query={prompt}&per_page=1",
+                "https://api.pexels.com/v1/search",
+                params={"query": prompt, "per_page": 1},
                 headers={"Authorization": f"{get_pexels_api_key_env()}"},
             )
             data = await response.json()
@@ -195,7 +601,13 @@ class ImageGenerationService:
     async def get_image_from_pixabay(self, prompt: str) -> str:
         async with aiohttp.ClientSession(trust_env=True) as session:
             response = await session.get(
-                f"https://pixabay.com/api/?key={get_pixabay_api_key_env()}&q={prompt}&image_type=photo&per_page=3"
+                "https://pixabay.com/api/",
+                params={
+                    "key": get_pixabay_api_key_env(),
+                    "q": prompt,
+                    "image_type": "photo",
+                    "per_page": 3,
+                },
             )
             data = await response.json()
             image_url = data["hits"][0]["largeImageURL"]

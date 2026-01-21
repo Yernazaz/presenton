@@ -95,7 +95,7 @@ class PptxParagraphModel(BaseModel):
 
 
 class PptxObjectFitModel(BaseModel):
-    fit: Optional[PptxObjectFitEnum] = None
+    fit: Optional[PptxObjectFitEnum] = PptxObjectFitEnum.FILL  # Default: stretch to fill
     focus: Optional[
         Annotated[List[Optional[float]], Len(min_length=2, max_length=2)]
     ] = None

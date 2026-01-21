@@ -7,7 +7,7 @@ import { deleteSlideOutline, setOutlines } from "@/store/slices/presentationGene
 import ToolTip from "@/components/ToolTip"
 import MarkdownEditor from "../../components/MarkdownEditor"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { marked } from "marked"
+import { renderMarkdownWithLatex } from "@/utils/markdownWithLatex"
 
 
 interface OutlineItemProps {
@@ -93,7 +93,7 @@ export function OutlineItem({
         }
         throttleRef.current = window.setTimeout(() => {
             try {
-                setRenderedHtml(marked.parse(content) as string)
+                setRenderedHtml(renderMarkdownWithLatex(content))
             } catch {
                 setRenderedHtml("")
             }
@@ -110,7 +110,7 @@ export function OutlineItem({
         if (!isStreaming || isActiveStreaming) return null
         if (!isStableStreaming) return null
         try {
-            return marked.parse(slideOutline.content || "") as string
+            return renderMarkdownWithLatex(slideOutline.content || "")
         } catch {
             return null
         }
@@ -185,4 +185,3 @@ export function OutlineItem({
         </div>
     )
 }
-

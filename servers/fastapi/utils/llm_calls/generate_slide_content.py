@@ -35,6 +35,10 @@ def get_system_prompt(
         - Slide body should not use words like "This slide", "This presentation".
         - Rephrase the slide body to make it flow naturally.
         - Only use markdown to highlight important points.
+        - All math formulas MUST be written in LaTeX and wrapped with proper delimiters:
+          - Inline: $...$
+          - Display: $$...$$
+          If the outline/user content contains formulas in plain text, convert them to LaTeX in your output.
         - Make sure to follow language guidelines.
         - Speaker note should be normal text, not markdown.
         - Strictly follow the max and min character limit for every property in the slide.
@@ -48,6 +52,7 @@ def get_system_prompt(
             - If verbosity is 'concise', then generate description as 1/3 or lower of the max character limit. Don't worry if you miss content or context.
             - If verbosity is 'standard', then generate description as 2/3 of the max character limit.
             - If verbosity is 'text-heavy', then generate description as 3/4 or higher of the max character limit. Make sure it does not exceed the max character limit.
+        - Any mathematical formulas/equations must be written in LaTeX math mode using `$...$` (inline) or `$$...$$` (block). If the outline contains formulas not in LaTeX, rewrite them into LaTeX.
 
         User instructions, tone and verbosity should always be followed and should supercede any other instruction, except for max and min character limit, slide schema and number of items.
 
@@ -69,7 +74,10 @@ def get_user_prompt(outline: str, language: str):
         ## Current Date and Time
         {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
-        ## Icon Query And Image Prompt Language
+        ## Image Prompt Language
+        {language}
+
+        ## Icon Query Language
         English
 
         ## Slide Content Language

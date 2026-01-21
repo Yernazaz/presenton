@@ -16,6 +16,7 @@ from pptx.oxml.xmlchemy import OxmlElement
 
 from pptx.util import Pt
 from pptx.dml.color import RGBColor
+from pptx.enum.text import MSO_AUTO_SIZE
 
 from models.pptx_models import (
     PptxAutoShapeBoxModel,
@@ -235,6 +236,7 @@ class PptxPresentationCreator:
 
         textbox = autoshape.text_frame
         textbox.word_wrap = autoshape_box_model.text_wrap
+        textbox.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
 
         self.apply_fill_to_shape(autoshape, autoshape_box_model.fill)
         self.apply_margin_to_text_box(textbox, autoshape_box_model.margin)
@@ -248,10 +250,14 @@ class PptxPresentationCreator:
     def add_textbox(self, slide: Slide, textbox_model: PptxTextBoxModel):
         position = textbox_model.position
         textbox_shape = slide.shapes.add_textbox(*position.to_pt_list())
-        textbox_shape.width += Pt(2)
+        # Slightly widen textboxes to reduce clipping, but never overflow slide bounds.
+        max_width = self._ppt.slide_width - Pt(position.left)
+        proposed_width = textbox_shape.width + Pt(2)
+        textbox_shape.width = proposed_width if proposed_width.emu <= max_width.emu else max_width
 
         textbox = textbox_shape.text_frame
         textbox.word_wrap = textbox_model.text_wrap
+        textbox.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
 
         self.apply_fill_to_shape(textbox_shape, textbox_model.fill)
         self.apply_margin_to_text_box(textbox, textbox_model.margin)

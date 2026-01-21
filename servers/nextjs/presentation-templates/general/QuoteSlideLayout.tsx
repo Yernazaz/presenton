@@ -51,7 +51,7 @@ const QuoteSlideLayout: React.FC<QuoteSlideLayoutProps> = ({ data: slideData }) 
 
                 {/* Background Image */}
                 <div
-                    className="absolute inset-0 w-full h-full bg-cover bg-center bg-no-repeat"
+                    className="absolute inset-0 w-full h-full bg-[length:100%_100%] bg-center bg-no-repeat"
                     style={{
                         backgroundImage: `url('${slideData?.backgroundImage?.__image_url__ || ''}')`,
                     }}

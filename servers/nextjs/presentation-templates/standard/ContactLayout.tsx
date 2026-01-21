@@ -157,11 +157,11 @@ const dynamicSlideLayout: React.FC<SlideLayoutProps> = ({ data: slideData }) => 
         <div className="px-10 pt-4 pb-8 h-[calc(100%-72px)]">
           <div className="grid grid-cols-[640px_1fr] gap-x-16 h-full">
             <div className="relative h-full overflow-hidden" style={{ backgroundColor: 'var(--tertiary-accent-color, #E5E7EB)' }}>
-              <img
-                src={slideData?.leftPanel?.backgroundImage?.__image_url__ || ""}
-                alt={slideData?.leftPanel?.backgroundImage?.__image_prompt__ || "cover"}
-                className="absolute inset-0 w-full h-full object-cover"
-              />
+	              <img
+	                src={slideData?.leftPanel?.backgroundImage?.__image_url__ || ""}
+	                alt={slideData?.leftPanel?.backgroundImage?.__image_prompt__ || "cover"}
+	                className="absolute inset-0 w-full h-full object-contain"
+	              />
             </div>
 
             <div className="h-full flex flex-col">

@@ -6,7 +6,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     libreoffice \
     fontconfig \
-    chromium
+    chromium \
+    zstd
 
 
 # Install Node.js 20 using NodeSource repository
@@ -29,7 +30,8 @@ RUN curl -fsSL https://ollama.com/install.sh | sh
 # Install dependencies for FastAPI
 RUN pip install aiohttp aiomysql aiosqlite asyncpg fastapi[standard] \
     pathvalidate pdfplumber chromadb sqlmodel \
-    anthropic google-genai openai fastmcp dirtyjson
+    anthropic google-genai openai fastmcp dirtyjson "duckduckgo-search>=6.2.0" \
+    python-pptx nltk
 RUN pip install docling --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Install dependencies for Next.js

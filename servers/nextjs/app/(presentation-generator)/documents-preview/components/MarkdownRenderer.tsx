@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 
-import { marked } from "marked";
+import { renderMarkdownWithLatex } from "@/utils/markdownWithLatex";
 
 interface MarkdownRendererProps {
   content: string;
@@ -14,8 +14,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
   useEffect(() => {
     const parseMarkdown = async () => {
       try {
-        const parsed = await marked.parse(content);
-        setMarkdownContent(parsed);
+        setMarkdownContent(renderMarkdownWithLatex(content));
       } catch (error) {
         console.error("Error parsing markdown:", error);
         setMarkdownContent("");

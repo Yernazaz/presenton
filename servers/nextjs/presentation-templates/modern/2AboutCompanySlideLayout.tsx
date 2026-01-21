@@ -69,13 +69,13 @@ const AboutCompanySlideLayout: React.FC<AboutCompanySlideLayoutProps> = ({
           {/* Left side - Image */}
           <div className="flex-1 pr-16 flex items-center pt-8">
             <div className="w-full h-96 overflow-hidden">
-              {slideData?.image ? (
-                <img
-                  src={slideData.image.__image_url__}
-                  alt={slideData.image.__image_prompt__}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
+	              {slideData?.image ? (
+	                <img
+	                  src={slideData.image.__image_url__}
+	                  alt={slideData.image.__image_prompt__}
+	                  className="w-full h-full object-contain"
+	                />
+	              ) : (
                 /* Default building facade */
                 <div className="w-full h-full bg-gray-200 relative">
                   {/* Building structure simulation */}

@@ -126,7 +126,7 @@ const TeamMembers: React.FC<SlideLayoutProps> = ({ data: slideData }) => {
               <div key={i} className="flex flex-col items-stretch">
                 {/* Photo block uses provided image */}
                 <div className="h-[180px] rounded-t-md overflow-hidden">
-                  <img src={it.image.__image_url__} alt={it.image.__image_prompt__} className="w-full h-full object-cover" />
+                  <img src={it.image.__image_url__} alt={it.image.__image_prompt__} className="w-full h-full object-contain" />
                 </div>
                 {/* Cyan details panel */}
                 <div className="relative -mt-[1px] rounded-b-[28px] px-6 pt-6 pb-7" style={{ backgroundColor: 'var(--primary-accent-color, #BFF4FF)' }}>
@@ -153,5 +153,4 @@ const TeamMembers: React.FC<SlideLayoutProps> = ({ data: slideData }) => {
 
 export { Schema, layoutId, layoutName, layoutDescription }
 export default TeamMembers
-
 

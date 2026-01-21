@@ -93,13 +93,13 @@ const IntroSlideLayout: React.FC<SlideLayoutProps> = ({ data: slideData }) => {
 
 
         {/* Right panel image (replaces dark gradient box) */}
-        <div className="absolute top-0 right-0 h-[520px] w-[36%] overflow-hidden">
-          <img
-            src={slideData?.media?.image?.__image_url__}
-            alt={slideData?.media?.image?.__image_prompt__}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        </div>
+	        <div className="absolute top-0 right-0 h-[520px] w-[36%] overflow-hidden">
+	          <img
+	            src={slideData?.media?.image?.__image_url__}
+	            alt={slideData?.media?.image?.__image_prompt__}
+	            className="absolute inset-0 w-full h-full object-contain"
+	          />
+	        </div>
 
         {/* Vertical diamond decorations */}
         <div className="absolute top-8 right-[38%] flex flex-col items-center gap-3">
@@ -159,5 +159,4 @@ const IntroSlideLayout: React.FC<SlideLayoutProps> = ({ data: slideData }) => {
 
 export { Schema, layoutId, layoutName, layoutDescription }
 export default IntroSlideLayout
-
 

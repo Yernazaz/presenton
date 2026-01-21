@@ -47,6 +47,7 @@ async def edit_slide(
         image_generation_service,
         slide.content,
         edited_slide_content,
+        language=presentation.language,
     )
 
     # Always assign a new unique id to the slide

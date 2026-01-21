@@ -28,4 +28,11 @@ export interface ImageAssetResponse {
   message:string;
   path:string;
   id:string;
+  extras?: {
+      prompt?: string;
+      search_query?: string;
+      candidates?: string[];
+      source?: string;
+      [key: string]: any;
+  };
 }

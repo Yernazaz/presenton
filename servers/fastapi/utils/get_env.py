@@ -117,3 +117,9 @@ def get_dall_e_3_quality_env():
 # Gpt Image 1.5 Quality
 def get_gpt_image_1_5_quality_env():
     return os.getenv("GPT_IMAGE_1_5_QUALITY")
+
+
+# Unsplash API Key
+def get_unsplash_api_key_env():
+    # Support both naming conventions used in different setups/docs.
+    return os.getenv("UNSPLASH_API_KEY") or os.getenv("UNSPLASH_ACCESS_KEY")

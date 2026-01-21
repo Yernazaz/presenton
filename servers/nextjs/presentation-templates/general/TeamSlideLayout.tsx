@@ -138,11 +138,11 @@ const TeamSlideLayout: React.FC<TeamSlideLayoutProps> = ({ data: slideData }) =>
                                 <div key={index} className="text-center space-y-3">
                                     {/* Member Photo */}
                                     <div className="w-32 h-32 mx-auto rounded-lg overflow-hidden shadow-md" style={{ background: "var(--tertiary-accent-color,#e5e7eb)" }}>
-                                        <img
-                                            src={member.image.__image_url__ || ''}
-                                            alt={member.image.__image_prompt__ || member.name}
-                                            className="w-full h-full object-cover"
-                                        />
+	                                        <img
+	                                            src={member.image.__image_url__ || ''}
+	                                            alt={member.image.__image_prompt__ || member.name}
+	                                            className="w-full h-full object-contain"
+	                                        />
                                     </div>
 
                                     {/* Member Info */}

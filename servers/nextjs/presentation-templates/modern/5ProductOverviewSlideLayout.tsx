@@ -162,13 +162,13 @@ const ProductOverviewSlideLayout: React.FC<ProductOverviewSlideLayoutProps> = ({
                     className="rounded-b-md overflow-hidden"
                     style={{ height: `${IMAGE_SECTION_HEIGHT + 28}px` }}
                   >
-                    <img
-                      src={products[0].image.__image_url__}
-                      alt={
-                        products[0].image.__image_prompt__ || products[0].title
-                      }
-                      className="w-full h-full object-cover"
-                    />
+	                    <img
+	                      src={products[0].image.__image_url__}
+	                      alt={
+	                        products[0].image.__image_prompt__ || products[0].title
+	                      }
+	                      className="w-full h-full object-contain"
+	                    />
                   </div>
                 </div>
               )}
@@ -188,13 +188,13 @@ const ProductOverviewSlideLayout: React.FC<ProductOverviewSlideLayoutProps> = ({
                     className="rounded-t-md overflow-hidden"
                     style={{ height: `${IMAGE_SECTION_HEIGHT + 28}px` }}
                   >
-                    <img
-                      src={products[1].image.__image_url__}
-                      alt={
-                        products[1].image.__image_prompt__ || products[1].title
-                      }
-                      className="w-full h-full object-cover"
-                    />
+	                    <img
+	                      src={products[1].image.__image_url__}
+	                      alt={
+	                        products[1].image.__image_prompt__ || products[1].title
+	                      }
+	                      className="w-full h-full object-contain"
+	                    />
                   </div>
                   {/* Bottom Section - Blue background with text */}
                   <div

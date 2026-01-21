@@ -136,7 +136,8 @@ async function postProcessSlidesAttributes(
         const screenshotPath = await screenshotElement(element, screenshotsDir);
         element.imageSrc = screenshotPath;
         element.should_screenshot = false;
-        element.objectFit = "cover";
+        // Prefer showing the whole screenshot rather than cropping it.
+        element.objectFit = "contain";
         element.element = undefined;
       }
     }

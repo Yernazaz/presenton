@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { LayoutList, ListTree, PanelRightOpen, X } from "lucide-react";
 import ToolTip from "@/components/ToolTip";
 import { Button } from "@/components/ui/button";
@@ -51,12 +51,6 @@ const SidePanel = ({
   // Use the centralized group layouts hook
   const { renderSlideContent } = useTemplateLayouts();
 
-  useEffect(() => {
-    if (window.innerWidth < 768) {
-      setIsOpen(isMobilePanelOpen);
-    }
-  }, [isMobilePanelOpen]);
-
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -69,10 +63,11 @@ const SidePanel = ({
   );
 
   const handleClose = () => {
-    setIsOpen(false);
-    if (window.innerWidth < 768) {
+    if (window.innerWidth < 1280) {
       setIsMobilePanelOpen(false);
+      return;
     }
+    setIsOpen(false);
   };
 
   const handleDragEnd = (event: any) => {
@@ -153,11 +148,9 @@ const SidePanel = ({
         className={`
           fixed xl:relative h-full z-50 xl:z-auto
           transition-all duration-300 ease-in-out
-          ${isOpen ? "ml-0" : "-ml-[300px]"}
-          ${isMobilePanelOpen
-            ? "translate-x-0"
-            : "-translate-x-full xl:translate-x-0"
-          }
+          ${isOpen ? "xl:ml-0" : "xl:-ml-[300px]"}
+          ${isMobilePanelOpen ? "translate-x-0" : "-translate-x-full"}
+          xl:translate-x-0
         `}
       >
         <div

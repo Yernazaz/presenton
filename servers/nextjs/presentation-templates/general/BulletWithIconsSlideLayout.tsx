@@ -106,11 +106,11 @@ const BulletWithIconsSlideLayout: React.FC<BulletWithIconsSlideLayoutProps> = ({
                             {/* Image Container */}
                             <div className="relative z-10 h-full flex items-center justify-center p-4">
                                 <div className="w-full max-w-md h-80 rounded-2xl overflow-hidden shadow-lg">
-                                    <img
-                                        src={slideData?.image?.__image_url__ || ''}
-                                        alt={slideData?.image?.__image_prompt__ || slideData?.title || ''}
-                                        className="w-full h-full object-cover"
-                                    />
+	                                    <img
+	                                        src={slideData?.image?.__image_url__ || ''}
+	                                        alt={slideData?.image?.__image_prompt__ || slideData?.title || ''}
+	                                        className="w-full h-full object-contain"
+	                                    />
                                 </div>
                             </div>
 

@@ -62,7 +62,7 @@ const IntroPitchDeckSlide: React.FC<IntroSlideLayoutProps> = ({
         className="w-full max-w-[1280px] bg-white aspect-video mx-auto relative overflow-hidden rounded-md"
         style={{
           fontFamily: "Montserrat, sans-serif",
-          backgroundSize: "cover",
+          backgroundSize: "100% 100%",
           backgroundPosition: "center",
         }}
       >

@@ -5,8 +5,8 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      # You can replace 5000 with any other port number of your choice to run Presenton on a different port number.
-      - "5000:80"
+      # You can replace 5001 with any other port number of your choice to run Presenton on a different port number.
+      - "5001:80"
     volumes:
       - ./app_data:/app_data
     environment:
@@ -23,7 +23,12 @@ services:
       - CUSTOM_LLM_URL=${CUSTOM_LLM_URL}
       - CUSTOM_LLM_API_KEY=${CUSTOM_LLM_API_KEY}
       - CUSTOM_MODEL=${CUSTOM_MODEL}
+      - IMAGE_PROVIDER=${IMAGE_PROVIDER}
+      - DISABLE_IMAGE_GENERATION=${DISABLE_IMAGE_GENERATION}
       - PEXELS_API_KEY=${PEXELS_API_KEY}
+      - PIXABAY_API_KEY=${PIXABAY_API_KEY}
+      - UNSPLASH_API_KEY=${UNSPLASH_API_KEY}
+      - GPT_IMAGE_1_5_QUALITY=${GPT_IMAGE_1_5_QUALITY}
       - EXTENDED_REASONING=${EXTENDED_REASONING}
       - TOOL_CALLS=${TOOL_CALLS}
       - DISABLE_THINKING=${DISABLE_THINKING}
@@ -32,6 +37,59 @@ services:
       - DISABLE_ANONYMOUS_TRACKING=${DISABLE_ANONYMOUS_TRACKING}
       - COMFYUI_URL=${COMFYUI_URL}
       - COMFYUI_WORKFLOW=${COMFYUI_WORKFLOW}
+      - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY}
+      - OPENAI_AGENT_URL=http://openai-agent:3000
+    depends_on:
+      - openai-agent
+
+  production-lite:
+    build:
+      context: .
+      dockerfile: Dockerfile.lite
+    ports:
+      - "5002:80"
+    volumes:
+      - ./app_data:/app_data
+    environment:
+      - CAN_CHANGE_KEYS=${CAN_CHANGE_KEYS}
+      - LLM=${LLM}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GOOGLE_MODEL=${GOOGLE_MODEL}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL}
+      - OLLAMA_URL=${OLLAMA_URL}
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
+      - CUSTOM_LLM_URL=${CUSTOM_LLM_URL}
+      - CUSTOM_LLM_API_KEY=${CUSTOM_LLM_API_KEY}
+      - CUSTOM_MODEL=${CUSTOM_MODEL}
+      - IMAGE_PROVIDER=${IMAGE_PROVIDER}
+      - DISABLE_IMAGE_GENERATION=${DISABLE_IMAGE_GENERATION}
+      - PEXELS_API_KEY=${PEXELS_API_KEY}
+      - PIXABAY_API_KEY=${PIXABAY_API_KEY}
+      - UNSPLASH_API_KEY=${UNSPLASH_API_KEY}
+      - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY}
+      - GPT_IMAGE_1_5_QUALITY=${GPT_IMAGE_1_5_QUALITY}
+      - EXTENDED_REASONING=${EXTENDED_REASONING}
+      - TOOL_CALLS=${TOOL_CALLS}
+      - DISABLE_THINKING=${DISABLE_THINKING}
+      - WEB_GROUNDING=${WEB_GROUNDING}
+      - DATABASE_URL=${DATABASE_URL}
+      - DISABLE_ANONYMOUS_TRACKING=${DISABLE_ANONYMOUS_TRACKING}
+      - COMFYUI_URL=${COMFYUI_URL}
+      - COMFYUI_WORKFLOW=${COMFYUI_WORKFLOW}
+      - START_OLLAMA=false
+      - OPENAI_AGENT_URL=http://openai-agent:3000
+
+  openai-agent:
+    build: 
+      context: servers/openai_agent_worker
+    ports:
+      - "3000:3000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    restart: on-failure
 
   production-gpu:
     # image: ghcr.io/presenton/presenton:latest
@@ -46,8 +104,8 @@ services:
               count: 1
               capabilities: [gpu]
     ports:
-      # You can replace 5000 with any other port number of your choice to run Presenton on a different port number.
-      - "5000:80"
+      # You can replace 5001 with any other port number of your choice to run Presenton on a different port number.
+      - "5001:80"
     volumes:
       - ./app_data:/app_data
     environment:
@@ -79,7 +137,7 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     ports:
-      - "5000:80"
+      - "5001:80"
     volumes:
       - .:/app
       - ./app_data:/app_data
@@ -97,7 +155,12 @@ services:
       - CUSTOM_LLM_URL=${CUSTOM_LLM_URL}
       - CUSTOM_LLM_API_KEY=${CUSTOM_LLM_API_KEY}
       - CUSTOM_MODEL=${CUSTOM_MODEL}
+      - IMAGE_PROVIDER=${IMAGE_PROVIDER}
+      - DISABLE_IMAGE_GENERATION=${DISABLE_IMAGE_GENERATION}
       - PEXELS_API_KEY=${PEXELS_API_KEY}
+      - PIXABAY_API_KEY=${PIXABAY_API_KEY}
+      - UNSPLASH_API_KEY=${UNSPLASH_API_KEY}
+      - GPT_IMAGE_1_5_QUALITY=${GPT_IMAGE_1_5_QUALITY}
       - EXTENDED_REASONING=${EXTENDED_REASONING}
       - TOOL_CALLS=${TOOL_CALLS}
       - DISABLE_THINKING=${DISABLE_THINKING}
@@ -119,7 +182,7 @@ services:
               count: 1
               capabilities: [gpu]
     ports:
-      - "5000:80"
+      - "5001:80"
     volumes:
       - .:/app
       - ./app_data:/app_data

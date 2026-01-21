@@ -9,7 +9,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Wand2, Upload, Loader2, Delete, Trash } from "lucide-react";
+import { Wand2, Upload, Loader2, Delete, Trash, Search, Sparkles, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PresentationGenerationApi } from "../services/api/presentation-generation";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +18,7 @@ import { PreviousGeneratedImagesResponse } from "../services/api/params";
 import { trackEvent, MixpanelEvent } from "@/utils/mixpanel";
 import { ImagesApi } from "../services/api/images";
 import { ImageAssetResponse } from "../services/api/types";
+import { AdaptiveImageApi, ImageAlternative } from "../services/api/adaptive-image";
 interface ImageEditorProps {
   initialImage: string | null;
   imageIdx?: number;
@@ -53,6 +54,21 @@ const ImageEditor = ({
   const [isOpen, setIsOpen] = useState(true);
   const [uploadedImages, setUploadedImages] = useState<ImageAssetResponse[]>([]);
   const [uploadedImagesLoading, setUploadedImagesLoading] = useState(false);
+  
+  // Smart Search state
+  const [smartSearchPrompt, setSmartSearchPrompt] = useState<string>("");
+  const [isSmartSearching, setIsSmartSearching] = useState(false);
+  const [smartSearchResults, setSmartSearchResults] = useState<ImageAlternative[]>([]);
+  const [smartSearchDecision, setSmartSearchDecision] = useState<"generate" | "search" | null>(null);
+  const [smartSearchReason, setSmartSearchReason] = useState<string>("");
+  const [smartSearchError, setSmartSearchError] = useState<string | null>(null);
+  
+  // Similar Images State
+  const [activeTab, setActiveTab] = useState("smart");
+  const [similarImages, setSimilarImages] = useState<string[]>([]);
+  const [similarImagesQuery, setSimilarImagesQuery] = useState<string>("");
+  const [loadingSimilar, setLoadingSimilar] = useState(false);
+  
   // Focus point and object fit for image editing
   const [isFocusPointMode, setIsFocusPointMode] = useState(false);
   const [focusPoint, setFocusPoint] = useState(
@@ -67,7 +83,7 @@ const ImageEditor = ({
     (properties &&
       properties[imageIdx] &&
       properties[imageIdx].initialObjectFit) ||
-      "cover"
+      "fill"
   );
 
   // Refs
@@ -82,6 +98,37 @@ const ImageEditor = ({
       getPreviousGeneratedImage();
     }
   }, [isOpen]);
+
+  // Fetch similar images when preview changes
+  useEffect(() => {
+    if (previewImages && isOpen) {
+       checkSimilarImages(previewImages);
+    }
+  }, [previewImages, isOpen]);
+
+  const checkSimilarImages = async (url: string) => {
+      // Don't check for local uploads or placeholders if possible, but path is url
+      if (url.startsWith("data:") || url.startsWith("blob:")) return;
+      
+      setLoadingSimilar(true);
+      setSimilarImages([]);
+      setSimilarImagesQuery("");
+      try {
+          const details = await ImagesApi.getImageDetails(url);
+          if (details.extras && details.extras.candidates && details.extras.candidates.length > 0) {
+              // Filter out the current one if needed, or just show all
+              setSimilarImages(details.extras.candidates);
+              setSimilarImagesQuery(details.extras.search_query || details.extras.prompt || "");
+          } else {
+              setSimilarImages([]);
+          }
+      } catch (e) {
+          // Silent fail
+          setSimilarImages([]);
+      } finally {
+          setLoadingSimilar(false);
+      }
+  };
 
   // Handle close with animation
   const handleClose = () => {
@@ -269,12 +316,52 @@ const ImageEditor = ({
       toast.error(err.message || "Failed to delete image. Please try again.");
     }
   };
+
+  /**
+   * Handles smart search - uses AI to decide whether to generate or search
+   */
+  const handleSmartSearch = async () => {
+    if (!smartSearchPrompt.trim()) {
+      setSmartSearchError("Please enter a description");
+      return;
+    }
+
+    try {
+      setIsSmartSearching(true);
+      setSmartSearchError(null);
+      setSmartSearchResults([]);
+      setSmartSearchDecision(null);
+      setSmartSearchReason("");
+
+      const response = await AdaptiveImageApi.getAdaptiveImage(smartSearchPrompt);
+      
+      setSmartSearchDecision(response.decision);
+      setSmartSearchReason(response.reason);
+      setSmartSearchResults(response.images);
+
+      // If only one image (generated), set it as preview
+      if (response.images.length === 1) {
+        setPreviewImages(response.images[0].url);
+      }
+    } catch (err: any) {
+      console.error("Smart search error:", err);
+      setSmartSearchError(err.message || "Failed to find images. Please try again.");
+    } finally {
+      setIsSmartSearching(false);
+    }
+  };
+
   return (
     <div className="image-editor-container">
-      <Sheet open={isOpen} onOpenChange={() => handleClose()}>
+      <Sheet
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open) handleClose();
+        }}
+      >
         <SheetContent
           side="right"
-          className="w-[600px]"
+          className="w-[600px] flex flex-col"
           onOpenAutoFocus={(e) => e.preventDefault()}
           onClick={(e) => e.stopPropagation()}
         >
@@ -282,9 +369,24 @@ const ImageEditor = ({
             <SheetTitle>Update Image</SheetTitle>
           </SheetHeader>
 
-          <div className="mt-6">
-            <Tabs defaultValue="generate" className="w-full" onValueChange={handleTabChange}>
-              <TabsList className="grid bg-blue-100 border border-blue-300 w-full grid-cols-3 mx-auto">
+          <div className="mt-6 flex-1 overflow-hidden">
+            <Tabs 
+              value={activeTab} 
+              onValueChange={(val) => {
+                setActiveTab(val);
+                handleTabChange(val);
+              }} 
+              className="w-full h-full flex flex-col"
+            >
+              <TabsList className="grid bg-blue-100 border border-blue-300 w-full grid-cols-5 mx-auto">
+                <TabsTrigger className="font-medium" value="similar">
+                   <LayoutGrid className="w-3 h-3 mr-1" />
+                   Similar
+                </TabsTrigger>
+                <TabsTrigger className="font-medium" value="smart">
+                  <Sparkles className="w-3 h-3 mr-1" />
+                  Smart
+                </TabsTrigger>
                 <TabsTrigger className="font-medium" value="generate">
                   AI Generate
                 </TabsTrigger>
@@ -295,8 +397,190 @@ const ImageEditor = ({
                   Edit
                 </TabsTrigger>
               </TabsList>
+
+              {/* Similar Search Tab */}
+              <TabsContent value="similar" className="mt-4 space-y-4 overflow-y-auto hide-scrollbar flex-1">
+                  <div className="space-y-4">
+                      <div>
+                        <h3 className="text-base font-medium mb-2 flex items-center gap-2">
+                          <LayoutGrid className="w-4 h-4 text-purple-500" />
+                          Similar Results
+                        </h3>
+                        {similarImagesQuery && (
+                            <p className="text-sm text-gray-500 mb-3">
+                              Showing alternative results for: <span className="font-semibold">"{similarImagesQuery}"</span>
+                            </p>
+                        )}
+                      </div>
+
+                      {loadingSimilar ? (
+                          <div className="grid grid-cols-2 gap-4">
+                            {Array.from({ length: 4 }).map((_, index) => (
+                                <Skeleton key={index} className="aspect-[4/3] w-full rounded-lg" />
+                            ))}
+                          </div>
+                      ) : (
+                          <div className="grid grid-cols-2 gap-4">
+                             {similarImages.map((img, index) => (
+                                <div
+                                  key={img}
+                                  onClick={() => handleImageChange(img)}
+                                  className="aspect-[4/3] w-full overflow-hidden rounded-lg border cursor-pointer hover:border-blue-500 hover:shadow-md transition-all group relative"
+                                >
+                                  <img
+                                    src={img}
+                                    data-fallback-src="data:image/gif;base64,R0lGODlhAQABAAAAACw="
+                                    alt={`Option ${index + 1}`}
+                                    className="w-full h-full object-fill group-hover:scale-105 transition-transform"
+                                    loading="lazy"
+                                    decoding="async"
+                                    referrerPolicy="no-referrer"
+                                    onError={(e) => {
+                                      const el = e.currentTarget;
+                                      const fallback = el.getAttribute("data-fallback-src");
+                                      if (fallback && el.src !== fallback) {
+                                        el.src = fallback;
+                                      }
+                                    }}
+                                  />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                    <span className="bg-white/90 px-3 py-1 rounded-full text-sm font-medium">
+                                      Use this
+                                    </span>
+                                  </div>
+                                </div>
+                             ))}
+                          </div>
+                      )}
+                      {similarImages.length === 0 && !loadingSimilar && (
+                          <div className="text-center py-8 text-gray-500">
+                              No similar images found for this selection.
+                          </div>
+                      )}
+                  </div>
+              </TabsContent>
+
+              {/* Smart Search Tab */}
+              <TabsContent value="smart" className="mt-4 space-y-4 overflow-y-auto hide-scrollbar flex-1">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-base font-medium mb-2 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-purple-500" />
+                      Smart Image Finder
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-3">
+                      Describe what you need. AI will decide whether to generate or search for the best image.
+                    </p>
+                    <Textarea
+                      placeholder="e.g., 'professional team meeting' or 'abstract innovation concept'"
+                      value={smartSearchPrompt}
+                      onChange={(e) => setSmartSearchPrompt(e.target.value)}
+                      className="min-h-[80px]"
+                    />
+                  </div>
+
+                  <Button
+                    onClick={handleSmartSearch}
+                    className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+                    disabled={!smartSearchPrompt.trim() || isSmartSearching}
+                  >
+                    {isSmartSearching ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Finding best images...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="w-4 h-4 mr-2" />
+                        Find Best Images
+                      </>
+                    )}
+                  </Button>
+
+                  {smartSearchError && (
+                    <p className="text-red-500 text-sm">{smartSearchError}</p>
+                  )}
+
+                  {/* Decision indicator */}
+                  {smartSearchDecision && (
+                    <div className={cn(
+                      "p-3 rounded-lg text-sm",
+                      smartSearchDecision === "generate" 
+                        ? "bg-purple-50 border border-purple-200" 
+                        : "bg-blue-50 border border-blue-200"
+                    )}>
+                      <div className="flex items-center gap-2">
+                        {smartSearchDecision === "generate" ? (
+                          <Wand2 className="w-4 h-4 text-purple-500" />
+                        ) : (
+                          <Search className="w-4 h-4 text-blue-500" />
+                        )}
+                        <span className="font-medium">
+                          {smartSearchDecision === "generate" ? "AI Generated" : "Web Search"}
+                        </span>
+                      </div>
+                      <p className="text-gray-600 mt-1">{smartSearchReason}</p>
+                    </div>
+                  )}
+
+                  {/* Results grid */}
+                  <div className="grid grid-cols-2 gap-4">
+                    {isSmartSearching ? (
+                      Array.from({ length: 4 }).map((_, index) => (
+                        <Skeleton
+                          key={index}
+                          className="aspect-[4/3] w-full rounded-lg"
+                        />
+                      ))
+                    ) : (
+                      smartSearchResults.map((image, index) => (
+                        <div
+                          key={image.url || `${image.source}-${index}`}
+                          onClick={() => handleImageChange(image.url)}
+                          className="aspect-[4/3] w-full overflow-hidden rounded-lg border cursor-pointer hover:border-blue-500 hover:shadow-md transition-all group relative"
+                        >
+                          <img
+                            src={image.thumbnail_url || image.url}
+                            data-fallback-src={image.url}
+                            alt={image.description || "Image option"}
+                            className="w-full h-full object-fill group-hover:scale-105 transition-transform"
+                            loading="lazy"
+                            decoding="async"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              const img = e.currentTarget;
+                              const fallback = img.getAttribute("data-fallback-src");
+                              if (fallback && img.src !== fallback) {
+                                img.src = fallback;
+                              }
+                            }}
+                          />
+                          {/* Source badge */}
+                          <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 rounded text-xs text-white capitalize">
+                            {image.source}
+                          </div>
+                          {/* Hover overlay */}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                            <span className="bg-white/90 px-3 py-1 rounded-full text-sm font-medium">
+                              Use this image
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Attribution notice */}
+                  {smartSearchResults.length > 0 && smartSearchDecision === "search" && (
+                    <p className="text-xs text-gray-400 text-center">
+                      Images from Unsplash, Wikimedia, Pexels, and Pixabay. Click to select.
+                    </p>
+                  )}
+                </div>
+              </TabsContent>
+
               {/* Generate Tab */}
-              <TabsContent value="generate" className="mt-4 space-y-4 overflow-y-auto hide-scrollbar h-[85vh]">
+              <TabsContent value="generate" className="mt-4 space-y-4 overflow-y-auto hide-scrollbar flex-1">
                 <div className="space-y-4">
                   <div>
                     <h3 className="text-sm font-medium mb-1">Current Prompt</h3>
@@ -343,7 +627,10 @@ const ImageEditor = ({
                           <img
                             src={previewImages}
                             alt={`Preview`}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-fill"
+                            loading="lazy"
+                            decoding="async"
+                            referrerPolicy="no-referrer"
                           />
                         )}
                       </div>
@@ -364,7 +651,10 @@ const ImageEditor = ({
                             <img
                               src={image.path}
                               alt={image.extras.prompt}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-fill"
+                              loading="lazy"
+                              decoding="async"
+                              referrerPolicy="no-referrer"
                             />
                           </div>
                         ))}
@@ -375,7 +665,7 @@ const ImageEditor = ({
               </TabsContent>
 
               {/* Upload Tab */}
-              <TabsContent value="upload" className="mt-4 space-y-4">
+              <TabsContent value="upload" className="mt-4 space-y-4 overflow-y-auto hide-scrollbar flex-1">
                 <div className="space-y-4">
                   <div
                     className={cn(
@@ -448,7 +738,10 @@ const ImageEditor = ({
                               <img
                                 src={uploadedImageUrl}
                                 alt="Uploaded preview"
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                className="w-full h-full object-fill group-hover:scale-105 transition-transform"
+                                loading="lazy"
+                                decoding="async"
+                                referrerPolicy="no-referrer"
                               />
                               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200" />
                               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -485,7 +778,10 @@ const ImageEditor = ({
                               <img
                                 src={image.path}
                                 alt="Uploaded preview"
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                className="w-full h-full object-fill group-hover:scale-105 transition-transform"
+                                loading="lazy"
+                                decoding="async"
+                                referrerPolicy="no-referrer"
                               />
                               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200" />
                               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -502,7 +798,7 @@ const ImageEditor = ({
                   </div>
                 </div>
               </TabsContent>
-              <TabsContent value="edit" className="mt-4 space-y-4">
+              <TabsContent value="edit" className="mt-4 space-y-4 overflow-y-auto hide-scrollbar flex-1">
                 <div className="space-y-4">
                   <h3 className="text-sm font-medium mb-2">Current Image</h3>
                   <div
@@ -529,7 +825,10 @@ const ImageEditor = ({
                           objectPosition: `${focusPoint.x}% ${focusPoint.y}%`,
                         }}
                         alt={`Preview`}
-                        className="w-full h-full "
+                        className="w-full h-full"
+                        loading="lazy"
+                        decoding="async"
+                        referrerPolicy="no-referrer"
                       />
                     )}
                     {isFocusPointMode && (

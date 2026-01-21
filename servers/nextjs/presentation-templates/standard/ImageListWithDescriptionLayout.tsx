@@ -122,7 +122,7 @@ const dynamicSlideLayout: React.FC<SlideLayoutProps> = ({ data: slideData }) => 
                     </div>
                   </div>
                   <div className="relative flex-1 min-h-[300px]" style={{ backgroundColor: 'var(--tertiary-accent-color, #E5E7EB)' }}>
-                    <img src={card.photo.__image_url__} alt={card.photo.__image_prompt__} className="absolute inset-0 w-full h-full object-cover" />
+                    <img src={card.photo.__image_url__} alt={card.photo.__image_prompt__} className="absolute inset-0 w-full h-full object-contain" />
                   </div>
                 </div>
               ))}

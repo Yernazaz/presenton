@@ -146,12 +146,12 @@ const ModernTeamSlideLayout: React.FC<ModernTeamSlideLayoutProps> = ({
                 {/* Photo */}
                 <div className="relative w-28 h-28 mb-4 rounded overflow-hidden bg-white border-2 border-blue-100 flex items-center justify-center">
                   {member.image.__image_url__ && (
-                    <img
-                      src={member.image.__image_url__}
-                      alt={member.image.__image_prompt__ || member.name}
-                      className="w-full h-full object-cover"
-                    />
-                  )}
+	                    <img
+	                      src={member.image.__image_url__}
+	                      alt={member.image.__image_prompt__ || member.name}
+	                      className="w-full h-full object-contain"
+	                    />
+	                  )}
                 </div>
                 {/* Name */}
                 <div className="text-lg font-bold text-blue-700 mb-1">
