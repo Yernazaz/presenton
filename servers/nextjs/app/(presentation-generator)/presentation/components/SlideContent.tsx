@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo } from "react";
-import { Loader2, PlusIcon, Trash2, WandSparkles, StickyNote } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Loader2, PlusIcon, Trash2, WandSparkles, LayoutGrid, StickyNote } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -15,20 +15,23 @@ import { useDispatch, useSelector } from "react-redux";
 import {
   deletePresentationSlide,
   updateSlide,
+  updateSlideObject,
 } from "@/store/slices/presentationGeneration";
 import { useTemplateLayouts } from "../../hooks/useTemplateLayouts";
 import { usePathname } from "next/navigation";
 import { trackEvent, MixpanelEvent } from "@/utils/mixpanel";
 import NewSlide from "../../components/NewSlide";
 import { addToHistory } from "@/store/slices/undoRedoSlice";
+import SlideViewport from "../../components/SlideViewport";
 
 interface SlideContentProps {
   slide: any;
   index: number;
   presentationId: string;
+  isEditMode: boolean;
 }
 
-const SlideContent = ({ slide, index, presentationId }: SlideContentProps) => {
+const SlideContent = ({ slide, index, presentationId, isEditMode }: SlideContentProps) => {
   const dispatch = useDispatch();
   const [isUpdating, setIsUpdating] = useState(false);
   const [showNewSlideSelection, setShowNewSlideSelection] = useState(false);
@@ -39,6 +42,253 @@ const SlideContent = ({ slide, index, presentationId }: SlideContentProps) => {
   // Use the centralized group layouts hook
   const { renderSlideContent, loading } = useTemplateLayouts();
   const pathname = usePathname();
+
+  const isFreeform =
+    typeof slide?.layout === "string" && slide.layout.startsWith("freeform:");
+
+  const collectSlideAssets = useCallback((data: any) => {
+    const texts: string[] = [];
+    const images: Array<{ url: string; prompt?: string }> = [];
+    const icons: Array<{ url: string; query?: string }> = [];
+
+    const seenText = new Set<string>();
+    const seenUrl = new Set<string>();
+    const seenIconUrl = new Set<string>();
+
+    const walk = (node: any) => {
+      if (node == null) return;
+      if (typeof node === "string") {
+        const t = node.trim();
+        if (t.length >= 3 && !seenText.has(t)) {
+          seenText.add(t);
+          texts.push(node);
+        }
+        return;
+      }
+      if (Array.isArray(node)) {
+        node.forEach(walk);
+        return;
+      }
+      if (typeof node !== "object") return;
+
+      // Image objects often have __image_url__/__image_prompt__
+      const maybeUrl = (node as any).__image_url__;
+      if (typeof maybeUrl === "string" && maybeUrl.trim().length > 0) {
+        const url = maybeUrl.trim();
+        if (!seenUrl.has(url)) {
+          seenUrl.add(url);
+          images.push({ url, prompt: (node as any).__image_prompt__ });
+        }
+      }
+
+      // Icon objects often have __icon_url__/__icon_query__
+      const maybeIconUrl = (node as any).__icon_url__;
+      if (typeof maybeIconUrl === "string" && maybeIconUrl.trim().length > 0) {
+        const url = maybeIconUrl.trim();
+        if (!seenIconUrl.has(url)) {
+          seenIconUrl.add(url);
+          icons.push({ url, query: (node as any).__icon_query__ });
+        }
+      }
+
+      for (const value of Object.values(node)) {
+        walk(value);
+      }
+    };
+
+    walk(data);
+    return { texts, images, icons };
+  }, []);
+
+  const convertToFreeform = useCallback(() => {
+    if (isStreaming) return;
+    if (!presentationData?.slides) return;
+    if (isFreeform) return;
+
+    dispatch(
+      addToHistory({
+        slides: presentationData?.slides,
+        actionType: "CONVERT_TO_FREEFORM",
+      })
+    );
+
+    const content = slide?.content || {};
+    const { texts, images, icons } = collectSlideAssets(content);
+
+    const title = typeof content?.title === "string" ? content.title : "";
+    const isProbablyUrl = (value: string) =>
+      /^(https?:\/\/|www\.)/i.test(value.trim()) ||
+      /^\/(app_data|static|_next)\//.test(value.trim()) ||
+      /^(data:|blob:)/i.test(value.trim());
+
+    const clamp = (value: string, maxLen: number) =>
+      value.length > maxLen ? value.slice(0, maxLen) : value;
+
+    const bodyFromStructured = (() => {
+      const body = (content as any)?.body;
+      if (typeof body === "string") return [body];
+      if (Array.isArray(body)) {
+        // Typical shape: [{heading, description}]
+        return body
+          .map((item: any) => {
+            if (!item) return "";
+            const heading = typeof item.heading === "string" ? item.heading.trim() : "";
+            const desc = typeof item.description === "string" ? item.description.trim() : "";
+            if (!heading && !desc) return "";
+            if (heading && desc) return `**${heading}**\n\n${desc}`;
+            return heading || desc;
+          })
+          .filter(Boolean);
+      }
+      return [];
+    })();
+
+    // Prefer structured body (keeps content “near original intent”), fallback to scanned texts.
+    const bodyCandidates = (bodyFromStructured.length ? bodyFromStructured : texts)
+      .map((t) => (t ?? "").toString())
+      .map((t) => t.trim())
+      .filter((t) => t && t !== title.trim())
+      .filter((t) => !isProbablyUrl(t));
+
+    const elements: any[] = [];
+    const makeId = () => `el-${crypto.randomUUID()}`;
+
+    const rightY = 140;
+
+    if (title.trim()) {
+      elements.push({
+        id: makeId(),
+        type: "text",
+        x: 80,
+        y: 40,
+        w: 1120,
+        h: 120,
+        text: clamp(title, 5000),
+        fontFamily: "Inter",
+        fontSize: 44,
+      });
+    }
+
+    const safeImages = images
+      .map((img) => ({ ...img, url: (img.url || "").toString().trim() }))
+      .filter((img) => img.url && isProbablyUrl(img.url) || img.url.startsWith("http"));
+
+    const hasMainImage = safeImages.length > 0;
+    const textX = hasMainImage ? 640 : 80;
+    const textW = hasMainImage ? 560 : 1120;
+
+    if (safeImages.length > 0) {
+      // Place main image left, additional images as a strip at the bottom.
+      const main = safeImages[0];
+      elements.push({
+        id: makeId(),
+        type: "image",
+        x: 80,
+        y: 160,
+        w: 520,
+        h: 420,
+        image: {
+          __image_url__: main.url,
+          __image_prompt__: clamp((main.prompt || "").toString(), 500),
+        },
+      });
+
+      const thumbs = safeImages.slice(1, 5);
+      const thumbY = 600;
+      const thumbW = 120;
+      const thumbH = 90;
+      const gap = 14;
+      thumbs.forEach((img, idx) => {
+        elements.push({
+          id: makeId(),
+          type: "image",
+          x: 80 + idx * (thumbW + gap),
+          y: thumbY,
+          w: thumbW,
+          h: thumbH,
+          image: {
+            __image_url__: img.url,
+            __image_prompt__: clamp((img.prompt || "").toString(), 500),
+          },
+        });
+      });
+    }
+
+    // Place up to 6 icons as small images (bottom row by default).
+    if (icons.length > 0) {
+      const iconY = hasMainImage ? 600 : 560;
+      const iconW = 96;
+      const iconH = 96;
+      const gap = 16;
+      const iconX = hasMainImage ? textX : 80;
+      icons.slice(0, 6).forEach((ico, idx) => {
+        elements.push({
+          id: makeId(),
+          type: "image",
+          x: iconX + idx * (iconW + gap),
+          y: iconY,
+          w: iconW,
+          h: iconH,
+          image: {
+            __image_url__: ico.url,
+            __image_prompt__: clamp((ico.query || "Icon").toString(), 500),
+          },
+        });
+      });
+    }
+
+    const yCursor = hasMainImage ? rightY : 140;
+
+    let cursor = yCursor;
+    for (const t of bodyCandidates.slice(0, 8)) {
+      const trimmed = t.trim();
+      if (!trimmed) continue;
+      const safeText = clamp(trimmed, 5000);
+      const h = Math.min(240, Math.max(80, Math.ceil(trimmed.length / 70) * 60));
+      elements.push({
+        id: makeId(),
+        type: "text",
+        x: textX,
+        y: cursor,
+        w: textW,
+        h,
+        text: safeText,
+        fontFamily: "Inter",
+        fontSize: 18,
+      });
+      cursor += h + 20;
+      if (cursor > 520) break;
+    }
+
+    const freeformContent = {
+      title: "",
+      elements: elements.length
+        ? elements
+        : [
+            {
+              id: makeId(),
+              type: "text",
+              x: 80,
+              y: 80,
+              w: 1120,
+              h: 120,
+              text: "Converted slide (edit freely)",
+              fontFamily: "Inter",
+              fontSize: 32,
+            },
+          ],
+    };
+
+    const newSlide = {
+      ...slide,
+      layout: "freeform:freeform-slide",
+      layout_group: "freeform",
+      content: freeformContent,
+    };
+
+    dispatch(updateSlideObject({ slideIndex: slide.index, slide: newSlide }));
+    toast.success("Converted to Freeform. You can move/resize elements now.");
+  }, [collectSlideAssets, dispatch, isFreeform, isStreaming, presentationData?.slides, slide]);
 
   const handleSubmit = async () => {
     const element = document.getElementById(
@@ -112,8 +362,8 @@ const SlideContent = ({ slide, index, presentationId }: SlideContentProps) => {
 
   // Memoized slide content rendering to prevent unnecessary re-renders
   const slideContent = useMemo(() => {
-    return renderSlideContent(slide, isStreaming ? false : true); // Enable edit mode for main content
-  }, [renderSlideContent, slide, isStreaming]);
+    return renderSlideContent(slide, isStreaming ? false : isEditMode);
+  }, [renderSlideContent, slide, isStreaming, isEditMode]);
 
   useEffect(() => {
     if (loading) {
@@ -148,13 +398,15 @@ const SlideContent = ({ slide, index, presentationId }: SlideContentProps) => {
           className={` w-full  group `}
         >
           {/* render slides */}
-          {loading ? (
-            <div className="flex flex-col bg-white aspect-video items-center justify-center h-full">
-              <Loader2 className="w-8 h-8 animate-spin" />
-            </div>
-          ) : (
-            slideContent
-          )}
+          <SlideViewport>
+            {loading ? (
+              <div className="flex flex-col bg-white h-full items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin" />
+              </div>
+            ) : (
+              slideContent
+            )}
+          </SlideViewport>
 
           {!showNewSlideSelection && (
             <div className="group-hover:opacity-100 hidden md:block opacity-0 transition-opacity my-4 duration-300">
@@ -182,19 +434,36 @@ const SlideContent = ({ slide, index, presentationId }: SlideContentProps) => {
             />
           )}
 
-          {!isStreaming && !loading && (
-            <ToolTip content="Delete slide">
-              <div
-                onClick={() => {
-                  trackEvent(MixpanelEvent.Slide_Delete_Slide_Button_Clicked, { pathname });
-                  onDeleteSlide();
-                }}
-                className="absolute top-2 z-20 sm:top-4 right-2 sm:right-4 hidden md:block  transition-transform"
-              >
-                <Trash2 className="text-gray-500 text-xl cursor-pointer" />
-              </div>
-            </ToolTip>
-          )}
+          {!isStreaming && !loading ? (
+            <div className="absolute top-2 right-2 sm:top-4 sm:right-4 z-30 flex flex-nowrap items-center gap-1">
+              {!isFreeform ? (
+                <ToolTip content="Convert to Freeform (move/resize elements)">
+                  <button
+                    type="button"
+                    onClick={() => convertToFreeform()}
+                    className="bg-white/90 hover:bg-white border border-gray-200 shadow-sm rounded-md p-2"
+                    aria-label="Convert to Freeform"
+                  >
+                    <LayoutGrid className="text-gray-600 w-5 h-5" />
+                  </button>
+                </ToolTip>
+              ) : null}
+
+              <ToolTip content="Delete slide">
+                <button
+                  type="button"
+                  onClick={() => {
+                    trackEvent(MixpanelEvent.Slide_Delete_Slide_Button_Clicked, { pathname });
+                    onDeleteSlide();
+                  }}
+                  className="bg-white/90 hover:bg-white border border-gray-200 shadow-sm rounded-md p-2"
+                  aria-label="Delete slide"
+                >
+                  <Trash2 className="text-gray-600 w-5 h-5" />
+                </button>
+              </ToolTip>
+            </div>
+          ) : null}
           {!isStreaming && (
             <div className="absolute top-2 z-20 sm:top-4 hidden md:block left-2 sm:left-4 transition-transform">
               <Popover>

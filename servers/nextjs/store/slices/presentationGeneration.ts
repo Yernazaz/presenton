@@ -133,6 +133,20 @@ const presentationGenerationSlice = createSlice({
       }
     },
 
+    // Replace entire slide object (loose typing; used for freeform conversion)
+    updateSlideObject: (
+      state,
+      action: PayloadAction<{ slideIndex: number; slide: any }>
+    ) => {
+      if (
+        state.presentationData &&
+        state.presentationData.slides &&
+        state.presentationData.slides[action.payload.slideIndex]
+      ) {
+        state.presentationData.slides[action.payload.slideIndex] = action.payload.slide;
+      }
+    },
+
     // Update slide content at specific data path (for Tiptap text editing)
     updateSlideContent: (
       state,
@@ -186,6 +200,142 @@ const presentationGenerationSlice = createSlice({
         // Update the slide content
         if (dataPath && slide.content) {
           setNestedValue(slide.content, dataPath, content);
+        }
+      }
+    },
+
+    // Update slide content at specific data path (generic, supports numbers/objects)
+    updateSlideValue: (
+      state,
+      action: PayloadAction<{
+        slideIndex: number;
+        dataPath: string;
+        value: any;
+      }>
+    ) => {
+      if (
+        state.presentationData &&
+        state.presentationData.slides &&
+        state.presentationData.slides[action.payload.slideIndex]
+      ) {
+        const slide = state.presentationData.slides[action.payload.slideIndex];
+        const { dataPath, value } = action.payload;
+
+        const setNestedValue = (obj: any, path: string, nextValue: any) => {
+          const keys = path.split(/[.\[\]]+/).filter(Boolean);
+          let current = obj;
+
+          for (let i = 0; i < keys.length - 1; i++) {
+            const key = keys[i];
+            if (isNaN(Number(key))) {
+              if (!current[key]) current[key] = {};
+              current = current[key];
+            } else {
+              const index = Number(key);
+              if (!current[index]) current[index] = {};
+              current = current[index];
+            }
+          }
+
+          const finalKey = keys[keys.length - 1];
+          if (isNaN(Number(finalKey))) {
+            current[finalKey] = nextValue;
+          } else {
+            current[Number(finalKey)] = nextValue;
+          }
+        };
+
+        if (dataPath && slide.content) {
+          setNestedValue(slide.content, dataPath, value);
+        }
+      }
+    },
+
+    appendSlideArrayItem: (
+      state,
+      action: PayloadAction<{
+        slideIndex: number;
+        dataPath: string; // path to array
+        value: any;
+      }>
+    ) => {
+      if (
+        state.presentationData &&
+        state.presentationData.slides &&
+        state.presentationData.slides[action.payload.slideIndex]
+      ) {
+        const slide = state.presentationData.slides[action.payload.slideIndex];
+        const { dataPath, value } = action.payload;
+
+        const getNested = (obj: any, path: string) => {
+          const keys = path.split(/[.\[\]]+/).filter(Boolean);
+          let current = obj;
+          for (const key of keys) {
+            if (current == null) return undefined;
+            current = isNaN(Number(key)) ? current[key] : current[Number(key)];
+          }
+          return current;
+        };
+
+        const setNested = (obj: any, path: string, nextValue: any) => {
+          const keys = path.split(/[.\[\]]+/).filter(Boolean);
+          let current = obj;
+          for (let i = 0; i < keys.length - 1; i++) {
+            const key = keys[i];
+            if (isNaN(Number(key))) {
+              if (!current[key]) current[key] = {};
+              current = current[key];
+            } else {
+              const index = Number(key);
+              if (!current[index]) current[index] = {};
+              current = current[index];
+            }
+          }
+          const finalKey = keys[keys.length - 1];
+          if (isNaN(Number(finalKey))) current[finalKey] = nextValue;
+          else current[Number(finalKey)] = nextValue;
+        };
+
+        if (!dataPath || !slide.content) return;
+        const arr = getNested(slide.content, dataPath);
+        if (Array.isArray(arr)) {
+          arr.push(value);
+        } else if (arr == null) {
+          setNested(slide.content, dataPath, [value]);
+        }
+      }
+    },
+
+    removeSlideArrayItem: (
+      state,
+      action: PayloadAction<{
+        slideIndex: number;
+        dataPath: string; // path to array
+        index: number;
+      }>
+    ) => {
+      if (
+        state.presentationData &&
+        state.presentationData.slides &&
+        state.presentationData.slides[action.payload.slideIndex]
+      ) {
+        const slide = state.presentationData.slides[action.payload.slideIndex];
+        const { dataPath, index } = action.payload;
+
+        const getNested = (obj: any, path: string) => {
+          const keys = path.split(/[.\[\]]+/).filter(Boolean);
+          let current = obj;
+          for (const key of keys) {
+            if (current == null) return undefined;
+            current = isNaN(Number(key)) ? current[key] : current[Number(key)];
+          }
+          return current;
+        };
+
+        if (!dataPath || !slide.content) return;
+        const arr = getNested(slide.content, dataPath);
+        if (Array.isArray(arr) && index >= 0 && index < arr.length) {
+          arr.splice(index, 1);
         }
       }
     },
@@ -377,6 +527,34 @@ const presentationGenerationSlice = createSlice({
         }
       }
     },
+
+    updateTextStyle: (
+      state,
+      action: PayloadAction<{
+        slideIndex: number;
+        dataPath: string;
+        style: { fontFamily?: string; fontSize?: number };
+      }>
+    ) => {
+      if (
+        state.presentationData &&
+        state.presentationData.slides &&
+        state.presentationData.slides[action.payload.slideIndex]
+      ) {
+        const slide = state.presentationData.slides[action.payload.slideIndex];
+        const { dataPath, style } = action.payload;
+        slide["properties"] = {
+          ...slide.properties,
+          textStyles: {
+            ...(slide.properties?.textStyles || {}),
+            [dataPath]: {
+              ...(slide.properties?.textStyles?.[dataPath] || {}),
+              ...style,
+            },
+          },
+        };
+      }
+    },
   },
 });
 
@@ -395,11 +573,16 @@ export const {
   // slides operations
   addSlide,
   updateSlide,
+  updateSlideObject,
   deletePresentationSlide,
   updateSlideContent,
+  updateSlideValue,
+  appendSlideArrayItem,
+  removeSlideArrayItem,
   updateSlideImage,
   updateImageProperties,
   updateSlideIcon,
+  updateTextStyle,
   addNewSlide,
 } = presentationGenerationSlice.actions;
 

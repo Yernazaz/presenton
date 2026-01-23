@@ -13,6 +13,7 @@ import { DashboardApi } from "../services/api/dashboard";
 import { useLayout } from "../context/LayoutContext";
 import { useFontLoader } from "../hooks/useFontLoader";
 import { useTemplateLayouts } from "../hooks/useTemplateLayouts";
+import SlideViewport from "../components/SlideViewport";
 
 
 
@@ -125,7 +126,9 @@ const PresentationPage = ({ presentation_id }: { presentation_id: string }) => {
                   presentationData.slides.map((slide: any, index: number) => (
                     // [data-speaker-note] is used to extract the speaker note from the slide for export to pptx
                     <div key={index} className="w-full" data-speaker-note={slide.speaker_note}>
-                      {renderSlideContent(slide, true)}
+                      <SlideViewport className="shadow-none border-0">
+                        {renderSlideContent(slide, false)}
+                      </SlideViewport>
                     </div>
                   ))}
               </>

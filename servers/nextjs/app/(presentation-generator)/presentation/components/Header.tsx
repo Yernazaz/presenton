@@ -6,6 +6,7 @@ import {
   Loader2,
   Redo2,
   Undo2,
+  Pencil,
 
 } from "lucide-react";
 import React, { useState } from "react";
@@ -37,19 +38,26 @@ import { usePresentationUndoRedo } from "../hooks/PresentationUndoRedo";
 import ToolTip from "@/components/ToolTip";
 import { clearPresentationData } from "@/store/slices/presentationGeneration";
 import { clearHistory } from "@/store/slices/undoRedoSlice";
+import { useActiveTiptapToolbar } from "../../components/ActiveTiptapToolbarContext";
+import { TiptapFormattingToolbar } from "../../components/TiptapText";
 
 const Header = ({
   presentation_id,
   currentSlide,
+  isEditMode,
+  onToggleEditMode,
 }: {
   presentation_id: string;
   currentSlide?: number;
+  isEditMode?: boolean;
+  onToggleEditMode?: () => void;
 }) => {
   const [open, setOpen] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const dispatch = useDispatch();
+  const tiptapToolbar = useActiveTiptapToolbar();
 
 
   const { presentationData, isStreaming } = useSelector(
@@ -211,6 +219,18 @@ const Header = ({
 
       </div>
 
+      {/* Edit Mode Toggle */}
+      <Button
+        onClick={() => onToggleEditMode?.()}
+        disabled={!!isStreaming}
+        variant="ghost"
+        className="border border-white font-bold text-white rounded-[32px] transition-all duration-300 group"
+        title={isEditMode ? "Editing enabled" : "Editing disabled"}
+      >
+        <Pencil className="w-4 h-4 mr-1 stroke-white group-hover:stroke-black" />
+        {isEditMode ? "Edit: On" : "Edit: Off"}
+      </Button>
+
       {/* Present Button */}
       <Button
         onClick={() => {
@@ -290,6 +310,17 @@ const Header = ({
           </div>
         </Wrapper>
 
+        {tiptapToolbar?.active?.editor ? (
+          <div className="bg-white/95 border-t border-white/20 px-3 py-2">
+            <div className="mx-auto max-w-[1280px] flex justify-center">
+              <TiptapFormattingToolbar
+                editor={tiptapToolbar.active.editor}
+                textStyle={tiptapToolbar.active.textStyle}
+                onTextStyleChange={tiptapToolbar.active.onTextStyleChange}
+              />
+            </div>
+          </div>
+        ) : null}
       </div>
     </>
   );

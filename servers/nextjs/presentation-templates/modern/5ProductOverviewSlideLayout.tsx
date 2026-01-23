@@ -167,7 +167,7 @@ const ProductOverviewSlideLayout: React.FC<ProductOverviewSlideLayoutProps> = ({
 	                      alt={
 	                        products[0].image.__image_prompt__ || products[0].title
 	                      }
-	                      className="w-full h-full object-contain"
+	                      className="w-full h-full object-fill"
 	                    />
                   </div>
                 </div>
@@ -193,7 +193,7 @@ const ProductOverviewSlideLayout: React.FC<ProductOverviewSlideLayoutProps> = ({
 	                      alt={
 	                        products[1].image.__image_prompt__ || products[1].title
 	                      }
-	                      className="w-full h-full object-contain"
+	                      className="w-full h-full object-fill"
 	                    />
                   </div>
                   {/* Bottom Section - Blue background with text */}

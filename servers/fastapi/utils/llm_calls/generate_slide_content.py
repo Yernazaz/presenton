@@ -35,10 +35,11 @@ def get_system_prompt(
         - Slide body should not use words like "This slide", "This presentation".
         - Rephrase the slide body to make it flow naturally.
         - Only use markdown to highlight important points.
-        - All math formulas MUST be written in LaTeX and wrapped with proper delimiters:
+        - All math formulas and any text-based schemes (flows, pipelines, trees, arrow-diagrams) MUST be written in LaTeX and wrapped with proper delimiters:
           - Inline: $...$
           - Display: $$...$$
-          If the outline/user content contains formulas in plain text, convert them to LaTeX in your output.
+          Do NOT use markdown code blocks or ASCII/Unicode art for schemes; use LaTeX (e.g. $$\\begin{{aligned}} A \\rightarrow B \\rightarrow C \\end{{aligned}}$$).
+          If the outline/user content contains formulas/schemes in plain text, convert them to LaTeX in your output.
         - Make sure to follow language guidelines.
         - Speaker note should be normal text, not markdown.
         - Strictly follow the max and min character limit for every property in the slide.
@@ -52,7 +53,7 @@ def get_system_prompt(
             - If verbosity is 'concise', then generate description as 1/3 or lower of the max character limit. Don't worry if you miss content or context.
             - If verbosity is 'standard', then generate description as 2/3 of the max character limit.
             - If verbosity is 'text-heavy', then generate description as 3/4 or higher of the max character limit. Make sure it does not exceed the max character limit.
-        - Any mathematical formulas/equations must be written in LaTeX math mode using `$...$` (inline) or `$$...$$` (block). If the outline contains formulas not in LaTeX, rewrite them into LaTeX.
+        - Any mathematical formulas/equations/schemes must be written in LaTeX math mode using `$...$` (inline) or `$$...$$` (block). If the outline contains formulas/schemes not in LaTeX, rewrite them into LaTeX.
 
         User instructions, tone and verbosity should always be followed and should supercede any other instruction, except for max and min character limit, slide schema and number of items.
 

@@ -251,9 +251,11 @@ class PptxPresentationCreator:
         position = textbox_model.position
         textbox_shape = slide.shapes.add_textbox(*position.to_pt_list())
         # Slightly widen textboxes to reduce clipping, but never overflow slide bounds.
-        max_width = self._ppt.slide_width - Pt(position.left)
-        proposed_width = textbox_shape.width + Pt(2)
-        textbox_shape.width = proposed_width if proposed_width.emu <= max_width.emu else max_width
+        # python-pptx returns shape.width as a raw EMU int; arithmetic on Length types
+        # can coerce back to int, so compare in EMUs to avoid attribute errors.
+        max_width_emu = int(self._ppt.slide_width) - int(Pt(position.left))
+        proposed_width_emu = int(textbox_shape.width) + int(Pt(2))
+        textbox_shape.width = proposed_width_emu if proposed_width_emu <= max_width_emu else max_width_emu
 
         textbox = textbox_shape.text_frame
         textbox.word_wrap = textbox_model.text_wrap

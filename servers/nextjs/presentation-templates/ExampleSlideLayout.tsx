@@ -64,7 +64,7 @@ export default function ExampleSlideLayout({ data }: { data: SchemaType }) {
             <img
               src={chartImage.__image_url__}
               alt={chartImage.__image_prompt__}
-              className="w-full h-auto max-h-96 object-contain"
+              className="w-full h-auto max-h-96 object-fill"
             />
           </div>
         )}

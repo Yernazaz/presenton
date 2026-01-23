@@ -23,6 +23,7 @@ import LoadingState from "./LoadingState";
 import { useLayout } from "../../context/LayoutContext";
 import { useFontLoader } from "../../hooks/useFontLoader";
 import { usePresentationUndoRedo } from "../hooks/PresentationUndoRedo";
+import { ActiveTiptapToolbarProvider } from "../../components/ActiveTiptapToolbarContext";
 const PresentationPage: React.FC<PresentationPageProps> = ({
   presentation_id,
 }) => {
@@ -33,6 +34,7 @@ const PresentationPage: React.FC<PresentationPageProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [error, setError] = useState(false);
   const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(true);
   const {getCustomTemplateFonts} = useLayout();
  
   const { presentationData, isStreaming } = useSelector(
@@ -123,12 +125,18 @@ const PresentationPage: React.FC<PresentationPageProps> = ({
   }
 
   return (
-    <div className="h-screen flex overflow-hidden flex-col">
+    <ActiveTiptapToolbarProvider>
+      <div className="h-screen flex overflow-hidden flex-col">
       <div className="fixed right-6 top-[5.2rem] z-50">
         {isSaving && <Loader2 className="w-6 h-6 animate-spin text-blue-500" />}
       </div>
 
-      <Header presentation_id={presentation_id} currentSlide={selectedSlide} />
+      <Header
+        presentation_id={presentation_id}
+        currentSlide={selectedSlide}
+        isEditMode={isEditMode}
+        onToggleEditMode={() => setIsEditMode((v) => !v)}
+      />
       <Help />
 
       <div
@@ -176,6 +184,7 @@ const PresentationPage: React.FC<PresentationPageProps> = ({
                       slide={slide}
                       index={index}
                       presentationId={presentation_id}
+                      isEditMode={isEditMode}
                     />
                   ))}
               </>
@@ -183,7 +192,8 @@ const PresentationPage: React.FC<PresentationPageProps> = ({
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </ActiveTiptapToolbarProvider>
   );
 };
 

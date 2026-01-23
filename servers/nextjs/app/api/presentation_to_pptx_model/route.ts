@@ -300,6 +300,19 @@ async function getAllChildElementsAttributes({
   const allResults: { attributes: ElementAttributes; depth: number }[] = [];
 
   for (const childElementHandle of directChildElementHandles) {
+    // KaTeX produces many nested spans that do not map well to PPTX text runs.
+    // For PPTX export, render KaTeX blocks as a single screenshot to preserve appearance.
+    const katexInfo = await childElementHandle.evaluate((el) => {
+      const closestKatex = (el as HTMLElement).closest?.(".katex, .katex-display");
+      if (!closestKatex) return { inKatex: false, isKatexRoot: false };
+      return { inKatex: true, isKatexRoot: closestKatex === el };
+    });
+
+    // Skip inner KaTeX nodes; we will handle the root as an image.
+    if (katexInfo.inKatex && !katexInfo.isKatexRoot) {
+      continue;
+    }
+
     const attributes = await getElementAttributes(childElementHandle);
 
     if (
@@ -385,6 +398,13 @@ async function getAllChildElementsAttributes({
     ) {
       attributes.should_screenshot = true;
       attributes.element = childElementHandle;
+    }
+
+    if (katexInfo.isKatexRoot) {
+      attributes.should_screenshot = true;
+      attributes.element = childElementHandle;
+      // Avoid also turning KaTeX into text.
+      attributes.innerText = "";
     }
 
     allResults.push({ attributes, depth });

@@ -115,7 +115,7 @@ const MarketSizeSlideLayout: React.FC<MarketSizeSlideProps> = ({
                   <img
                     src={slideData?.mapImage?.__image_url__}
                     alt="Market World Map with Points"
-                    className="w-full object-contain rounded-md"
+                    className="w-full object-fill rounded-md"
                     style={{ maxHeight: 220 }}
                   />
                 )}

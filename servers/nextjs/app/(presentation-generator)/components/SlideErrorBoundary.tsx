@@ -28,10 +28,26 @@ export class SlideErrorBoundary extends React.Component<
     };
   }
 
-  componentDidCatch(error: unknown) {
+  componentDidCatch(error: unknown, info: React.ErrorInfo) {
     // Optionally log to an error reporting service
     // eslint-disable-next-line no-console
     console.error("Slide render error:", error);
+    try {
+      const err = error instanceof Error ? error : new Error(String(error));
+      window.dispatchEvent(
+        new CustomEvent("presenton:slide-error", {
+          detail: {
+            ts: Date.now(),
+            source: "slide",
+            message: `${this.props.label ? `${this.props.label} ` : ""}${err.message}`,
+            stack: err.stack,
+            componentStack: info?.componentStack,
+          },
+        })
+      );
+    } catch {
+      // ignore
+    }
   }
 
   render() {
@@ -52,5 +68,3 @@ export class SlideErrorBoundary extends React.Component<
 }
 
 export default SlideErrorBoundary;
-
-

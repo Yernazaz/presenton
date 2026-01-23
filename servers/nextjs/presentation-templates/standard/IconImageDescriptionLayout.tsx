@@ -133,7 +133,7 @@ const dynamicSlideLayout: React.FC<SlideLayoutProps> = ({ data: slideData }) => 
 	          <img
 	            src={slideData?.backgroundImage?.__image_url__ || ""}
 	            alt={slideData?.backgroundImage?.__image_prompt__ || "background"}
-	            className="absolute inset-0 w-full h-full object-contain"
+	            className="absolute inset-0 w-full h-full object-fill"
 	          />
           <div className="absolute inset-0" style={{ backgroundColor: 'rgba(255,255,255,0.6)' }}></div>
           <div className="relative w-[900px] max-w-[92%] rounded-md shadow-[0_30px_90px_rgba(0,0,0,0.18)]" style={{ backgroundColor: 'var(--primary-accent-color, #1B8C2D)' }}>

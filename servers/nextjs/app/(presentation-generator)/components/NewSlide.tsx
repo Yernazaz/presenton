@@ -19,13 +19,14 @@ const NewSlide = ({
   presentationId,
 }: NewSlideProps) => {
   const dispatch = useDispatch();
+  const [selectedTemplateID, setSelectedTemplateID] = React.useState(templateID);
   const handleNewSlide = (sampleData: any, id: string) => {
     try {
       const newSlide = {
         id: uuidv4(),
         index: index,
         content: sampleData,
-        layout_group: templateID,
+        layout_group: selectedTemplateID,
         layout: id,
         presentation: presentationId,
       };
@@ -36,8 +37,9 @@ const NewSlide = ({
       toast.error("Error adding new slide");
     }
   };
-  const { getFullDataByTemplateID, loading } = useLayout();
-  const fullData = getFullDataByTemplateID(templateID);
+  const { getFullDataByTemplateID, getAllTemplateIDs, loading } = useLayout();
+  const allTemplateIDs = getAllTemplateIDs();
+  const fullData = getFullDataByTemplateID(selectedTemplateID);
 
   if (loading) {
     return (
@@ -59,7 +61,21 @@ const NewSlide = ({
   return (
     <div className="my-6 w-full bg-gray-50 p-8 max-w-[1280px]">
       <div className="flex justify-between items-center  mb-8">
-        <h2 className="text-2xl font-semibold">Select a Slide Layout</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-semibold">Select a Slide Layout</h2>
+          <select
+            className="border rounded px-2 py-1 text-sm bg-white"
+            value={selectedTemplateID}
+            onChange={(e) => setSelectedTemplateID(e.target.value)}
+            title="Template"
+          >
+            {allTemplateIDs.map((id) => (
+              <option key={id} value={id}>
+                {id}
+              </option>
+            ))}
+          </select>
+        </div>
         <Trash2
           onClick={() => setShowNewSlideSelection(false)}
           className="text-gray-500 text-2xl cursor-pointer"

@@ -31,10 +31,11 @@ def get_system_prompt(
     - The goal is to change Slide data based on the provided prompt.
     - Do not change **Image prompts** and **Icon queries** if not asked for in prompt.
     - Generate **Image prompts** and **Icon queries** if asked to generate or change in prompt.
-    - All math formulas MUST be written in LaTeX and wrapped with proper delimiters:
+    - All math formulas and any text-based schemes (flows, pipelines, trees, arrow-diagrams) MUST be written in LaTeX and wrapped with proper delimiters:
       - Inline: $...$
       - Display: $$...$$
-      If the user prompt contains formulas in plain text, convert them to LaTeX in the updated slide content.
+      Do NOT use markdown code blocks or ASCII/Unicode art for schemes; use LaTeX (e.g. $$\\begin{{aligned}} A \\rightarrow B \\rightarrow C \\end{{aligned}}$$).
+      If the user prompt contains formulas/schemes in plain text, convert them to LaTeX in the updated slide content.
     - Make sure to follow language guidelines.
     - Speaker note should be normal text, not markdown.
     - Speaker note should be simple, clear, concise and to the point.

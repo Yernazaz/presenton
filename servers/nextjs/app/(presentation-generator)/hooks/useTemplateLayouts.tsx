@@ -5,8 +5,11 @@ import { useLayout } from "../context/LayoutContext";
 import EditableLayoutWrapper from "../components/EditableLayoutWrapper";
 import SlideErrorBoundary from "../components/SlideErrorBoundary";
 import TiptapTextReplacer from "../components/TiptapTextReplacer";
+import LatexTextReplacer from "../components/LatexTextReplacer";
 import { updateSlideContent } from "../../../store/slices/presentationGeneration";
+import { updateTextStyle } from "../../../store/slices/presentationGeneration";
 import { Loader2 } from "lucide-react";
+import TextStyleReplacer from "../components/TextStyleReplacer";
 
 export const useTemplateLayouts = () => {
   const dispatch = useDispatch();
@@ -48,6 +51,25 @@ export const useTemplateLayouts = () => {
         );
       }
 
+      const isFreeform =
+        typeof slide?.layout === "string" && slide.layout.startsWith("freeform:");
+
+      // Freeform layout is already a builder (it manages its own text/images),
+      // so do not run replacers that assume static DOM text.
+      if (isFreeform) {
+        return (
+          <SlideErrorBoundary label={`Slide ${slide.index + 1}`}>
+            {(Layout as any)
+              ? React.createElement(Layout as any, {
+                  data: slide.content,
+                  isEditMode,
+                  slideIndex: slide.index,
+                })
+              : null}
+          </SlideErrorBoundary>
+        );
+      }
+
       if (isEditMode) {
         return (
           <EditableLayoutWrapper
@@ -55,37 +77,60 @@ export const useTemplateLayouts = () => {
             slideData={slide.content}
             properties={slide.properties}
           >
-            <TiptapTextReplacer
-              key={slide.id}
-              slideData={slide.content}
-              slideIndex={slide.index}
-              onContentChange={(
-                content: string,
-                dataPath: string,
-                slideIndex?: number
-              ) => {
-                if (dataPath && slideIndex !== undefined) {
-                  dispatch(
-                    updateSlideContent({
-                      slideIndex: slideIndex,
-                      dataPath: dataPath,
-                      content: content,
-                    })
-                  );
-                }
-              }}
-            >
-              <SlideErrorBoundary label={`Slide ${slide.index + 1}`}>
-                <Layout data={slide.content} />
-              </SlideErrorBoundary>
-            </TiptapTextReplacer>
+            <TextStyleReplacer slideData={slide.content} properties={slide.properties}>
+              <TiptapTextReplacer
+                key={slide.id}
+                slideData={slide.content}
+                slideIndex={slide.index}
+                properties={slide.properties}
+                onContentChange={(
+                  content: string,
+                  dataPath: string,
+                  slideIndex?: number
+                ) => {
+                  if (dataPath && slideIndex !== undefined) {
+                    dispatch(
+                      updateSlideContent({
+                        slideIndex: slideIndex,
+                        dataPath: dataPath,
+                        content: content,
+                      })
+                    );
+                  }
+                }}
+                onTextStyleChange={(dataPath, style, slideIndex) => {
+                  if (!dataPath || slideIndex === undefined) return;
+                  dispatch(updateTextStyle({ slideIndex, dataPath, style }));
+                }}
+              >
+                <SlideErrorBoundary label={`Slide ${slide.index + 1}`}>
+                  {(Layout as any)
+                    ? React.createElement(Layout as any, {
+                        data: slide.content,
+                        isEditMode: true,
+                        slideIndex: slide.index,
+                      })
+                    : null}
+                </SlideErrorBoundary>
+              </TiptapTextReplacer>
+            </TextStyleReplacer>
           </EditableLayoutWrapper>
         );
       }
       return (
-        <SlideErrorBoundary label={`Slide ${slide.index + 1}`}>
-          <Layout data={slide.content} />
-        </SlideErrorBoundary>
+        <TextStyleReplacer slideData={slide.content} properties={slide.properties}>
+          <LatexTextReplacer slideData={slide.content}>
+            <SlideErrorBoundary label={`Slide ${slide.index + 1}`}>
+              {(Layout as any)
+                ? React.createElement(Layout as any, {
+                    data: slide.content,
+                    isEditMode: false,
+                    slideIndex: slide.index,
+                  })
+                : null}
+            </SlideErrorBoundary>
+          </LatexTextReplacer>
+        </TextStyleReplacer>
       );
     };
   }, [getTemplateLayout, dispatch]);

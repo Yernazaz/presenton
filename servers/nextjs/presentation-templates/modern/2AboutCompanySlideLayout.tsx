@@ -73,7 +73,7 @@ const AboutCompanySlideLayout: React.FC<AboutCompanySlideLayoutProps> = ({
 	                <img
 	                  src={slideData.image.__image_url__}
 	                  alt={slideData.image.__image_prompt__}
-	                  className="w-full h-full object-contain"
+	                  className="w-full h-full object-fill"
 	                />
 	              ) : (
                 /* Default building facade */

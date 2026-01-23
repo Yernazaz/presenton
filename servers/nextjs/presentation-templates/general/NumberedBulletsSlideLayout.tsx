@@ -90,7 +90,7 @@ const NumberedBulletsSlideLayout: React.FC<NumberedBulletsSlideLayoutProps> = ({
                             <img
                                 src={slideData?.image?.__image_url__ || ''}
                                 alt={slideData?.image?.__image_prompt__ || slideData?.title || ''}
-                                className="w-full h-full object-contain rounded-lg shadow-md" style={{ background: "var(--tertiary-accent-color,#e5e7eb)" }}
+                                className="w-full h-full object-fill rounded-lg shadow-md" style={{ background: "var(--tertiary-accent-color,#e5e7eb)" }}
                             />
                         </div>
                     </div>

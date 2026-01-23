@@ -97,7 +97,7 @@ const IntroSlideLayout: React.FC<SlideLayoutProps> = ({ data: slideData }) => {
 	          <img
 	            src={slideData?.media?.image?.__image_url__}
 	            alt={slideData?.media?.image?.__image_prompt__}
-	            className="absolute inset-0 w-full h-full object-contain"
+	            className="absolute inset-0 w-full h-full object-fill"
 	          />
 	        </div>
 
@@ -159,4 +159,3 @@ const IntroSlideLayout: React.FC<SlideLayoutProps> = ({ data: slideData }) => {
 
 export { Schema, layoutId, layoutName, layoutDescription }
 export default IntroSlideLayout
-
