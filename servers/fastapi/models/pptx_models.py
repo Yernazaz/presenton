@@ -2,9 +2,11 @@ from enum import Enum
 from typing import Annotated, List, Literal, Optional
 from annotated_types import Len
 from pydantic import BaseModel
-from pptx.util import Pt
+from pptx.util import Pt, Inches
 from pptx.enum.text import PP_ALIGN
 from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE, MSO_CONNECTOR_TYPE
+
+PX_PER_INCH = 96
 
 
 class PptxBoxShapeEnum(Enum):
@@ -40,14 +42,21 @@ class PptxPositionModel(BaseModel):
         return cls(left=left, top=top, width=width, height=100)
 
     def to_pt_list(self) -> List[int]:
-        return [Pt(self.left), Pt(self.top), Pt(self.width), Pt(self.height)]
+        # Frontend coordinates are in CSS pixels relative to a 1280x720 viewport.
+        # Convert px -> inches for python-pptx (96 CSS px per inch).
+        return [
+            Inches(self.left / PX_PER_INCH),
+            Inches(self.top / PX_PER_INCH),
+            Inches(self.width / PX_PER_INCH),
+            Inches(self.height / PX_PER_INCH),
+        ]
 
     def to_pt_xyxy(self) -> List[int]:
         return [
-            Pt(self.left),
-            Pt(self.top),
-            Pt(self.left + self.width),
-            Pt(self.top + self.height),
+            Inches(self.left / PX_PER_INCH),
+            Inches(self.top / PX_PER_INCH),
+            Inches((self.left + self.width) / PX_PER_INCH),
+            Inches((self.top + self.height) / PX_PER_INCH),
         ]
 
 

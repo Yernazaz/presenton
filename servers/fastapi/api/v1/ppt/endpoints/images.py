@@ -5,6 +5,8 @@ from sqlmodel import select
 
 from models.image_prompt import ImagePrompt
 from models.sql.image_asset import ImageAsset
+from models.sql.teacher import TeacherModel
+from services.auth import get_optional_current_teacher
 from services.database import get_async_session
 from services.image_generation_service import ImageGenerationService
 from utils.asset_directory_utils import get_images_directory
@@ -19,6 +21,7 @@ IMAGES_ROUTER = APIRouter(prefix="/images", tags=["Images"])
 async def generate_image(
     prompt: str,
     language: str = "English",
+    teacher: TeacherModel | None = Depends(get_optional_current_teacher),
     sql_session: AsyncSession = Depends(get_async_session),
 ):
     images_directory = get_images_directory()
@@ -29,6 +32,8 @@ async def generate_image(
     if not isinstance(image, ImageAsset):
         return image
 
+    if teacher:
+        image.teacher_id = teacher.id
     sql_session.add(image)
     await sql_session.commit()
 
@@ -36,13 +41,15 @@ async def generate_image(
 
 
 @IMAGES_ROUTER.get("/generated", response_model=List[ImageAsset])
-async def get_generated_images(sql_session: AsyncSession = Depends(get_async_session)):
+async def get_generated_images(
+    teacher: TeacherModel | None = Depends(get_optional_current_teacher),
+    sql_session: AsyncSession = Depends(get_async_session),
+):
     try:
-        images = await sql_session.scalars(
-            select(ImageAsset)
-            .where(ImageAsset.is_uploaded == False)
-            .order_by(ImageAsset.created_at.desc())
-        )
+        stmt = select(ImageAsset).where(ImageAsset.is_uploaded == False)
+        if teacher:
+            stmt = stmt.where(ImageAsset.teacher_id == teacher.id)
+        images = await sql_session.scalars(stmt.order_by(ImageAsset.created_at.desc()))
         return images
     except Exception as e:
         raise HTTPException(
@@ -52,7 +59,9 @@ async def get_generated_images(sql_session: AsyncSession = Depends(get_async_ses
 
 @IMAGES_ROUTER.post("/upload")
 async def upload_image(
-    file: UploadFile = File(...), sql_session: AsyncSession = Depends(get_async_session)
+    file: UploadFile = File(...),
+    teacher: TeacherModel | None = Depends(get_optional_current_teacher),
+    sql_session: AsyncSession = Depends(get_async_session),
 ):
     try:
         new_filename = get_file_name_with_random_uuid(file)
@@ -64,6 +73,8 @@ async def upload_image(
             f.write(await file.read())
 
         image_asset = ImageAsset(path=image_path, is_uploaded=True)
+        if teacher:
+            image_asset.teacher_id = teacher.id
 
         sql_session.add(image_asset)
         await sql_session.commit()
@@ -74,13 +85,15 @@ async def upload_image(
 
 
 @IMAGES_ROUTER.get("/uploaded", response_model=List[ImageAsset])
-async def get_uploaded_images(sql_session: AsyncSession = Depends(get_async_session)):
+async def get_uploaded_images(
+    teacher: TeacherModel | None = Depends(get_optional_current_teacher),
+    sql_session: AsyncSession = Depends(get_async_session),
+):
     try:
-        images = await sql_session.scalars(
-            select(ImageAsset)
-            .where(ImageAsset.is_uploaded == True)
-            .order_by(ImageAsset.created_at.desc())
-        )
+        stmt = select(ImageAsset).where(ImageAsset.is_uploaded == True)
+        if teacher:
+            stmt = stmt.where(ImageAsset.teacher_id == teacher.id)
+        images = await sql_session.scalars(stmt.order_by(ImageAsset.created_at.desc()))
         return images
     except Exception as e:
         raise HTTPException(
@@ -90,13 +103,17 @@ async def get_uploaded_images(sql_session: AsyncSession = Depends(get_async_sess
 
 @IMAGES_ROUTER.delete("/{id}", status_code=204)
 async def delete_uploaded_image_by_id(
-    id: uuid.UUID, sql_session: AsyncSession = Depends(get_async_session)
+    id: uuid.UUID,
+    teacher: TeacherModel | None = Depends(get_optional_current_teacher),
+    sql_session: AsyncSession = Depends(get_async_session),
 ):
     try:
         # Fetch the asset to get its actual file path
         image = await sql_session.get(ImageAsset, id)
         if not image:
             raise HTTPException(status_code=404, detail="Image not found")
+        if teacher and image.teacher_id != teacher.id:
+            raise HTTPException(status_code=403, detail="Not your image")
 
         os.remove(image.path)
 
@@ -168,7 +185,11 @@ async def search_multiple_sources(query: str, per_source: int = 2):
 
 
 @IMAGES_ROUTER.get("/details", response_model=ImageAsset)
-async def get_image_details(url: str, sql_session: AsyncSession = Depends(get_async_session)):
+async def get_image_details(
+    url: str,
+    teacher: TeacherModel | None = Depends(get_optional_current_teacher),
+    sql_session: AsyncSession = Depends(get_async_session),
+):
     """
     Get image details (including alternative candidates) by URL.
     """
@@ -179,6 +200,8 @@ async def get_image_details(url: str, sql_session: AsyncSession = Depends(get_as
         # Search for asset ending with this filename
         # We use like because exact path might differ (absolute vs relative)
         statement = select(ImageAsset).where(ImageAsset.path.like(f"%{filename}"))
+        if teacher:
+            statement = statement.where(ImageAsset.teacher_id == teacher.id)
         result = await sql_session.scalars(statement)
         image = result.first()
         

@@ -19,6 +19,7 @@ from models.sse_response import (
 from services.temp_file_service import TEMP_FILE_SERVICE
 from services.database import get_async_session
 from services.documents_loader import DocumentsLoader
+from utils.latex_sanitizer import sanitize_latex_escapes
 from utils.llm_calls.generate_presentation_outlines import generate_ppt_outline
 from utils.ppt_utils import get_presentation_title_from_outlines
 
@@ -84,8 +85,8 @@ async def stream_outlines(
             presentation_outlines_text += chunk
 
         try:
-            presentation_outlines_json = dict(
-                dirtyjson.loads(presentation_outlines_text)
+            presentation_outlines_json = sanitize_latex_escapes(
+                dict(dirtyjson.loads(presentation_outlines_text))
             )
         except Exception as e:
             traceback.print_exc()

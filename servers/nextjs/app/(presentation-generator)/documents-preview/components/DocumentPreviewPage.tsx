@@ -159,6 +159,10 @@ const DocumentsPreviewPage: React.FC = () => {
           include_table_of_contents: !!config?.includeTableOfContents,
           include_title_slide: !!config?.includeTitleSlide,
           web_search: !!config?.webSearch,
+          grade: config?.grade ? Number(config.grade) : null,
+          subject: config?.subject || null,
+          prompt_template_id: config?.prompt_template_id || null,
+          disable_prompt_template: config?.prompt_template_id === "",
         }
       );
 

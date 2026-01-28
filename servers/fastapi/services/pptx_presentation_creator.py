@@ -15,6 +15,7 @@ from PIL import Image
 from pptx.oxml.xmlchemy import OxmlElement
 
 from pptx.util import Pt
+from pptx.util import Inches
 from pptx.dml.color import RGBColor
 from pptx.enum.text import MSO_AUTO_SIZE
 
@@ -47,6 +48,43 @@ from utils.image_utils import (
 import uuid
 
 BLANK_SLIDE_LAYOUT = 6
+PX_PER_INCH = 96
+
+
+def pt_from_px(px: float) -> Pt:
+    # 1in = 96px = 72pt
+    return Pt(px * 72 / PX_PER_INCH)
+
+
+def inches_from_px(px: float) -> Inches:
+    return Inches(px / PX_PER_INCH)
+
+
+def map_font_name(font_name: str) -> str:
+    """
+    PowerPoint doesn't embed webfonts by default; if a font isn't installed on the
+    viewer's machine, text metrics drift badly. Map common web fonts to a stable
+    Office-installed font for deterministic layout.
+    """
+    name = (font_name or "").strip()
+    if not name:
+        return "Calibri"
+
+    normalized = name.lower()
+    webfont_fallbacks = {
+        "inter": "Calibri",
+        "poppins": "Calibri",
+        "roboto": "Calibri",
+        "open sans": "Calibri",
+        "lato": "Calibri",
+        "montserrat": "Calibri",
+        "nunito": "Calibri",
+        "raleway": "Calibri",
+        "source sans 3": "Calibri",
+        "source sans pro": "Calibri",
+        "work sans": "Calibri",
+    }
+    return webfont_fallbacks.get(normalized, name)
 
 
 class PptxPresentationCreator:
@@ -57,8 +95,9 @@ class PptxPresentationCreator:
         self._slide_models = ppt_model.slides
 
         self._ppt = Presentation()
-        self._ppt.slide_width = Pt(1280)
-        self._ppt.slide_height = Pt(720)
+        # Match the 1280x720 CSS viewport at 96dpi => 13.333" x 7.5" (widescreen).
+        self._ppt.slide_width = inches_from_px(1280)
+        self._ppt.slide_height = inches_from_px(720)
 
     def get_sub_element(self, parent, tagname, **kwargs):
         """Helper method to create XML elements"""
@@ -171,7 +210,7 @@ class PptxPresentationCreator:
         connector_shape = slide.shapes.add_connector(
             connector_model.type, *connector_model.position.to_pt_xyxy()
         )
-        connector_shape.line.width = Pt(connector_model.thickness)
+        connector_shape.line.width = pt_from_px(connector_model.thickness)
         connector_shape.line.color.rgb = RGBColor.from_string(connector_model.color)
         self.set_fill_opacity(connector_shape, connector_model.opacity)
 
@@ -253,13 +292,14 @@ class PptxPresentationCreator:
         # Slightly widen textboxes to reduce clipping, but never overflow slide bounds.
         # python-pptx returns shape.width as a raw EMU int; arithmetic on Length types
         # can coerce back to int, so compare in EMUs to avoid attribute errors.
-        max_width_emu = int(self._ppt.slide_width) - int(Pt(position.left))
-        proposed_width_emu = int(textbox_shape.width) + int(Pt(2))
+        max_width_emu = int(self._ppt.slide_width) - int(inches_from_px(position.left))
+        proposed_width_emu = int(textbox_shape.width) + int(inches_from_px(2))
         textbox_shape.width = proposed_width_emu if proposed_width_emu <= max_width_emu else max_width_emu
 
         textbox = textbox_shape.text_frame
         textbox.word_wrap = textbox_model.text_wrap
-        textbox.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        # Keep font sizes stable; wrapping/authoring should control overflow.
+        textbox.auto_size = MSO_AUTO_SIZE.NONE
 
         self.apply_fill_to_shape(textbox_shape, textbox_model.fill)
         self.apply_margin_to_text_box(textbox, textbox_model.margin)
@@ -311,7 +351,7 @@ class PptxPresentationCreator:
         if not border_radius:
             return
         try:
-            normalized_border_radius = Pt(border_radius) / min(
+            normalized_border_radius = pt_from_px(border_radius) / min(
                 shape.width, shape.height
             )
             shape.adjustments[0] = normalized_border_radius
@@ -334,7 +374,7 @@ class PptxPresentationCreator:
         else:
             shape.line.fill.solid()
             shape.line.fill.fore_color.rgb = RGBColor.from_string(stroke.color)
-            shape.line.width = Pt(stroke.thickness)
+            shape.line.width = pt_from_px(stroke.thickness)
             self.set_fill_opacity(shape.line.fill, stroke.opacity)
 
     def apply_shadow_to_shape(
@@ -406,9 +446,9 @@ class PptxPresentationCreator:
                 effect_list,
                 f"{{{nsmap['a']}}}outerShdw",
                 {
-                    "blurRad": f"{Pt(shadow.radius)}",
+                    "blurRad": f"{pt_from_px(shadow.radius)}",
                     "dir": f"{angle_dir}",
-                    "dist": f"{Pt(shadow.offset)}",
+                    "dist": f"{pt_from_px(shadow.offset)}",
                     "rotWithShape": "0",
                 },
                 nsmap=nsmap,
@@ -455,25 +495,25 @@ class PptxPresentationCreator:
     def apply_margin_to_text_box(
         self, text_frame: TextFrame, margin: Optional[PptxSpacingModel]
     ) -> PptxPositionModel:
-        text_frame.margin_left = Pt(margin.left if margin else 0)
-        text_frame.margin_right = Pt(margin.right if margin else 0)
-        text_frame.margin_top = Pt(margin.top if margin else 0)
-        text_frame.margin_bottom = Pt(margin.bottom if margin else 0)
+        text_frame.margin_left = pt_from_px(margin.left if margin else 0)
+        text_frame.margin_right = pt_from_px(margin.right if margin else 0)
+        text_frame.margin_top = pt_from_px(margin.top if margin else 0)
+        text_frame.margin_bottom = pt_from_px(margin.bottom if margin else 0)
 
     def apply_spacing_to_paragraph(
         self, paragraph: _Paragraph, spacing: PptxSpacingModel
     ):
-        paragraph.space_before = Pt(spacing.top)
-        paragraph.space_after = Pt(spacing.bottom)
+        paragraph.space_before = pt_from_px(spacing.top)
+        paragraph.space_after = pt_from_px(spacing.bottom)
 
     def apply_font_to_paragraph(self, paragraph: _Paragraph, font: PptxFontModel):
         self.apply_font(paragraph.font, font)
 
     def apply_font(self, font: Font, font_model: PptxFontModel):
-        font.name = font_model.name
+        font.name = map_font_name(font_model.name)
         font.color.rgb = RGBColor.from_string(font_model.color)
         font.italic = font_model.italic
-        font.size = Pt(font_model.size)
+        font.size = pt_from_px(font_model.size)
         font.bold = font_model.font_weight >= 600
         if font_model.underline is not None:
             font.underline = bool(font_model.underline)

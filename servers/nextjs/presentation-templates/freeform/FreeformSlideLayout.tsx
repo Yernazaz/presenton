@@ -217,6 +217,10 @@ const dynamicSlideLayout: React.FC<LayoutProps> = ({
     const drag = dragRef.current;
     if (!drag) return;
     if (!isValidSlideIndex(slideIndex)) return;
+    const elType = (data.elements[drag.index] as any)?.type as
+      | "text"
+      | "image"
+      | undefined;
     const dx = e.clientX - drag.startX;
     const dy = e.clientY - drag.startY;
 
@@ -231,7 +235,10 @@ const dynamicSlideLayout: React.FC<LayoutProps> = ({
         : drag.origW;
     const nextH =
       drag.mode === "resize"
-        ? Math.max(20, Math.min(720 - drag.origY, drag.origH + dy))
+        ? Math.max(
+            elType === "image" ? 40 : 20,
+            Math.min(720 - drag.origY, drag.origH + dy)
+          )
         : drag.origH;
 
     dispatch(

@@ -13,6 +13,7 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from constants.presentation import DEFAULT_TEMPLATES
+from constants.education_templates import SUPPORTED_SCHOOL_SUBJECTS
 from enums.webhook_event import WebhookEvent
 from models.api_error_model import APIErrorModel
 from models.generate_presentation_request import GeneratePresentationRequest
@@ -34,10 +35,14 @@ from models.sql.template import TemplateModel
 
 from services.documents_loader import DocumentsLoader
 from services.webhook_service import WebhookService
+from models.sql.teacher import TeacherModel
+from services.auth import get_optional_current_teacher
+from services.teacher_template_service import apply_teacher_templates_to_request, resolve_teacher_instructions
 from utils.get_layout_by_name import get_layout_by_name
 from services.image_generation_service import ImageGenerationService
 from utils.dict_utils import deep_update
 from utils.export_utils import export_presentation
+from utils.latex_sanitizer import sanitize_latex_escapes
 from utils.llm_calls.generate_presentation_outlines import generate_ppt_outline
 from models.sql.slide import SlideModel
 from models.sse_response import SSECompleteResponse, SSEErrorResponse, SSEResponse
@@ -72,17 +77,21 @@ PRESENTATION_ROUTER = APIRouter(prefix="/presentation", tags=["Presentation"])
 
 
 @PRESENTATION_ROUTER.get("/all", response_model=List[PresentationWithSlides])
-async def get_all_presentations(sql_session: AsyncSession = Depends(get_async_session)):
+async def get_all_presentations(
+    teacher: TeacherModel | None = Depends(get_optional_current_teacher),
+    sql_session: AsyncSession = Depends(get_async_session),
+):
     presentations_with_slides = []
 
-    query = (
-        select(PresentationModel, SlideModel)
-        .join(
-            SlideModel,
-            (SlideModel.presentation == PresentationModel.id) & (SlideModel.index == 0),
-        )
-        .order_by(PresentationModel.created_at.desc())
+    query = select(PresentationModel, SlideModel).join(
+        SlideModel,
+        (SlideModel.presentation == PresentationModel.id) & (SlideModel.index == 0),
     )
+    if teacher:
+        query = query.where(PresentationModel.teacher_id == teacher.id)
+    else:
+        query = query.where(PresentationModel.teacher_id == None)
+    query = query.order_by(PresentationModel.created_at.desc())
 
     results = await sql_session.execute(query)
     rows = results.all()
@@ -98,11 +107,15 @@ async def get_all_presentations(sql_session: AsyncSession = Depends(get_async_se
 
 @PRESENTATION_ROUTER.get("/{id}", response_model=PresentationWithSlides)
 async def get_presentation(
-    id: uuid.UUID, sql_session: AsyncSession = Depends(get_async_session)
+    id: uuid.UUID,
+    teacher: TeacherModel | None = Depends(get_optional_current_teacher),
+    sql_session: AsyncSession = Depends(get_async_session),
 ):
     presentation = await sql_session.get(PresentationModel, id)
     if not presentation:
         raise HTTPException(404, "Presentation not found")
+    if teacher and presentation.teacher_id != teacher.id:
+        raise HTTPException(403, "Not your presentation")
     slides = await sql_session.scalars(
         select(SlideModel)
         .where(SlideModel.presentation == id)
@@ -116,11 +129,15 @@ async def get_presentation(
 
 @PRESENTATION_ROUTER.delete("/{id}", status_code=204)
 async def delete_presentation(
-    id: uuid.UUID, sql_session: AsyncSession = Depends(get_async_session)
+    id: uuid.UUID,
+    teacher: TeacherModel | None = Depends(get_optional_current_teacher),
+    sql_session: AsyncSession = Depends(get_async_session),
 ):
     presentation = await sql_session.get(PresentationModel, id)
     if not presentation:
         raise HTTPException(404, "Presentation not found")
+    if teacher and presentation.teacher_id != teacher.id:
+        raise HTTPException(403, "Not your presentation")
 
     await sql_session.delete(presentation)
     await sql_session.commit()
@@ -138,8 +155,18 @@ async def create_presentation(
     include_table_of_contents: Annotated[bool, Body()] = False,
     include_title_slide: Annotated[bool, Body()] = True,
     web_search: Annotated[bool, Body()] = False,
+    grade: Annotated[Optional[int], Body()] = None,
+    subject: Annotated[Optional[Literal["math", "physics", "biology", "literature"]], Body()] = None,
+    prompt_template_id: Annotated[Optional[uuid.UUID], Body()] = None,
+    disable_prompt_template: Annotated[bool, Body()] = False,
+    teacher: TeacherModel | None = Depends(get_optional_current_teacher),
     sql_session: AsyncSession = Depends(get_async_session),
 ):
+
+    if grade is not None and (grade < 1 or grade > 11):
+        raise HTTPException(status_code=400, detail="grade must be 1..11")
+    if subject is not None and subject not in SUPPORTED_SCHOOL_SUBJECTS:
+        raise HTTPException(status_code=400, detail="Unsupported subject")
 
     if include_table_of_contents and n_slides < 3:
         raise HTTPException(
@@ -149,15 +176,26 @@ async def create_presentation(
 
     presentation_id = uuid.uuid4()
 
+    effective_instructions, _, _, _, _, _ = await resolve_teacher_instructions(
+        instructions,
+        grade,
+        subject,
+        prompt_template_id,
+        disable_prompt_template,
+        sql_session,
+        teacher,
+    )
+
     presentation = PresentationModel(
         id=presentation_id,
+        teacher_id=teacher.id if teacher else None,
         content=content,
         n_slides=n_slides,
         language=language,
         file_paths=file_paths,
         tone=tone.value,
         verbosity=verbosity.value,
-        instructions=instructions,
+        instructions=effective_instructions,
         include_table_of_contents=include_table_of_contents,
         include_title_slide=include_title_slide,
         web_search=web_search,
@@ -175,6 +213,7 @@ async def prepare_presentation(
     outlines: Annotated[List[SlideOutlineModel], Body()],
     layout: Annotated[PresentationLayoutModel, Body()],
     title: Annotated[Optional[str], Body()] = None,
+    teacher: TeacherModel | None = Depends(get_optional_current_teacher),
     sql_session: AsyncSession = Depends(get_async_session),
 ):
     if not outlines:
@@ -183,6 +222,8 @@ async def prepare_presentation(
     presentation = await sql_session.get(PresentationModel, presentation_id)
     if not presentation:
         raise HTTPException(status_code=404, detail="Presentation not found")
+    if teacher and presentation.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Not your presentation")
 
     presentation_outline_model = PresentationOutlineModel(slides=outlines)
 
@@ -257,11 +298,15 @@ async def prepare_presentation(
 
 @PRESENTATION_ROUTER.get("/stream/{id}", response_model=PresentationWithSlides)
 async def stream_presentation(
-    id: uuid.UUID, sql_session: AsyncSession = Depends(get_async_session)
+    id: uuid.UUID,
+    teacher: TeacherModel | None = Depends(get_optional_current_teacher),
+    sql_session: AsyncSession = Depends(get_async_session),
 ):
     presentation = await sql_session.get(PresentationModel, id)
     if not presentation:
         raise HTTPException(status_code=404, detail="Presentation not found")
+    if teacher and presentation.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Not your presentation")
     if not presentation.structure:
         raise HTTPException(
             status_code=400,
@@ -319,7 +364,12 @@ async def stream_presentation(
 
             # This will mutate slide
             async_assets_generation_tasks.append(
-                process_slide_and_fetch_assets(image_generation_service, slide, presentation.language)
+                process_slide_and_fetch_assets(
+                    image_generation_service,
+                    slide,
+                    presentation.language,
+                    teacher_id=presentation.teacher_id,
+                )
             )
 
             yield SSEResponse(
@@ -367,11 +417,14 @@ async def update_presentation(
     n_slides: Annotated[Optional[int], Body()] = None,
     title: Annotated[Optional[str], Body()] = None,
     slides: Annotated[Optional[List[SlideModel]], Body()] = None,
+    teacher: TeacherModel | None = Depends(get_optional_current_teacher),
     sql_session: AsyncSession = Depends(get_async_session),
 ):
     presentation = await sql_session.get(PresentationModel, id)
     if not presentation:
         raise HTTPException(status_code=404, detail="Presentation not found")
+    if teacher and presentation.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Not your presentation")
 
     presentation_update_dict = {}
     if n_slides:
@@ -425,12 +478,15 @@ async def export_presentation_as_pptx_or_pdf(
     export_as: Annotated[
         Literal["pptx", "pdf"], Body(description="Format to export the presentation as")
     ] = "pptx",
+    teacher: TeacherModel | None = Depends(get_optional_current_teacher),
     sql_session: AsyncSession = Depends(get_async_session),
 ):
     presentation = await sql_session.get(PresentationModel, id)
 
     if not presentation:
         raise HTTPException(status_code=404, detail="Presentation not found")
+    if teacher and presentation.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Not your presentation")
 
     presentation_and_path = await export_presentation(
         id,
@@ -491,10 +547,12 @@ async def generate_presentation_handler(
     request: GeneratePresentationRequest,
     presentation_id: uuid.UUID,
     async_status: Optional[AsyncPresentationGenerationTaskModel],
+    teacher: TeacherModel | None = None,
     sql_session: AsyncSession = Depends(get_async_session),
 ):
     try:
         using_slides_markdown = False
+        await apply_teacher_templates_to_request(request, sql_session, teacher)
 
         if request.slides_markdown:
             using_slides_markdown = True
@@ -551,8 +609,8 @@ async def generate_presentation_handler(
                 presentation_outlines_text += chunk
 
             try:
-                presentation_outlines_json = dict(
-                    dirtyjson.loads(presentation_outlines_text)
+                presentation_outlines_json = sanitize_latex_escapes(
+                    dict(dirtyjson.loads(presentation_outlines_text))
                 )
             except Exception:
                 traceback.print_exc()
@@ -651,6 +709,7 @@ async def generate_presentation_handler(
         # Create PresentationModel
         presentation = PresentationModel(
             id=presentation_id,
+            teacher_id=teacher.id if teacher else None,
             content=request.content,
             n_slides=request.n_slides,
             language=request.language,
@@ -718,7 +777,12 @@ async def generate_presentation_handler(
 
             # Start asset fetch tasks for just-generated slides so they run while next batch is processed
             asset_tasks = [
-                process_slide_and_fetch_assets(image_generation_service, slide, presentation.language)
+                process_slide_and_fetch_assets(
+                    image_generation_service,
+                    slide,
+                    presentation.language,
+                    teacher_id=teacher.id if teacher else None,
+                )
                 for slide in batch_slides
             ]
             async_assets_generation_tasks.extend(asset_tasks)
@@ -804,12 +868,13 @@ async def generate_presentation_handler(
 @PRESENTATION_ROUTER.post("/generate", response_model=PresentationPathAndEditPath)
 async def generate_presentation_sync(
     request: GeneratePresentationRequest,
+    teacher: TeacherModel | None = Depends(get_optional_current_teacher),
     sql_session: AsyncSession = Depends(get_async_session),
 ):
     try:
         (presentation_id,) = await check_if_api_request_is_valid(request, sql_session)
         return await generate_presentation_handler(
-            request, presentation_id, None, sql_session
+            request, presentation_id, None, teacher=teacher, sql_session=sql_session
         )
     except Exception:
         traceback.print_exc()
@@ -822,6 +887,7 @@ async def generate_presentation_sync(
 async def generate_presentation_async(
     request: GeneratePresentationRequest,
     background_tasks: BackgroundTasks,
+    teacher: TeacherModel | None = Depends(get_optional_current_teacher),
     sql_session: AsyncSession = Depends(get_async_session),
 ):
     try:
@@ -840,6 +906,7 @@ async def generate_presentation_async(
             request,
             presentation_id,
             async_status=async_status,
+            teacher=teacher,
             sql_session=sql_session,
         )
         return async_status

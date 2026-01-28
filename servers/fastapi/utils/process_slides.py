@@ -1,5 +1,6 @@
 import asyncio
 from typing import List, Tuple
+import uuid
 from models.image_prompt import ImagePrompt
 from models.sql.image_asset import ImageAsset
 from models.sql.slide import SlideModel
@@ -13,6 +14,7 @@ async def process_slide_and_fetch_assets(
     image_generation_service: ImageGenerationService,
     slide: SlideModel,
     language: str = "English",
+    teacher_id: uuid.UUID | None = None,
 ) -> List[ImageAsset]:
 
     async_tasks = []
@@ -45,6 +47,8 @@ async def process_slide_and_fetch_assets(
         image_dict = get_dict_at_path(slide.content, image_path)
         result = results.pop()
         if isinstance(result, ImageAsset):
+            if teacher_id:
+                result.teacher_id = teacher_id
             return_assets.append(result)
             image_dict["__image_url__"] = result.path
         else:
@@ -69,6 +73,7 @@ async def process_old_and_new_slides_and_fetch_assets(
     old_slide_content: dict,
     new_slide_content: dict,
     language: str = "English",
+    teacher_id: uuid.UUID | None = None,
 ) -> List[ImageAsset]:
     # Finds all old images
     old_image_dict_paths = get_dict_paths_with_key(
@@ -160,6 +165,8 @@ async def process_old_and_new_slides_and_fetch_assets(
         if new_images_fetch_status[i]:
             fetched_image = new_images[i]
             if isinstance(fetched_image, ImageAsset):
+                if teacher_id:
+                    fetched_image.teacher_id = teacher_id
                 new_assets.append(fetched_image)
                 image_url = fetched_image.path
             else:

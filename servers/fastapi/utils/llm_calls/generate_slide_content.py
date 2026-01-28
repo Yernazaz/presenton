@@ -40,6 +40,9 @@ def get_system_prompt(
           - Display: $$...$$
           Do NOT use markdown code blocks or ASCII/Unicode art for schemes; use LaTeX (e.g. $$\\begin{{aligned}} A \\rightarrow B \\rightarrow C \\end{{aligned}}$$).
           If the outline/user content contains formulas/schemes in plain text, convert them to LaTeX in your output.
+        - IMPORTANT (JSON escaping): your output must be valid JSON. In JSON strings, a single backslash starts an escape (`\\t`, `\\r`, `\\b`, `\\f`, ...),
+          which will BREAK LaTeX commands like `\\text`, `\\rightarrow`, `\\beta`, `\\frac`. Therefore, inside JSON string values you MUST escape every LaTeX backslash
+          as a double backslash. Example JSON value: "$$\\\\text{{Insulin}} \\\\rightarrow \\\\text{{...}}$$".
         - Make sure to follow language guidelines.
         - Speaker note should be normal text, not markdown.
         - Strictly follow the max and min character limit for every property in the slide.

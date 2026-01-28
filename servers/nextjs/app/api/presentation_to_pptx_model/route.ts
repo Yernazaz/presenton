@@ -102,6 +102,49 @@ async function getBrowserAndPage(id: string): Promise<[Browser, Page]> {
     waitUntil: "networkidle0",
     timeout: 300000,
   });
+
+  // Wait until the client-side renderer finishes loading slides, fonts and (optionally) Tailwind runtime.
+  await page.waitForFunction(
+    () => (window as any).__PRESENTON_PDF_READY__ === true,
+    { timeout: 300000 }
+  );
+
+  // Best-effort: wait for LaTeX -> KaTeX overlays to be applied so PPTX export
+  // screenshots math blocks instead of exporting raw `$...$` text.
+  try {
+    await page.waitForFunction(
+      () => {
+        const wrapper = document.querySelector("#presentation-slides-wrapper");
+        if (!wrapper) return true;
+
+        const nodes = Array.from(wrapper.querySelectorAll("*")) as HTMLElement[];
+        const mathSignal = (text: string) => {
+          if (!text) return false;
+          if (text.includes("\\(") || text.includes("\\)") || text.includes("\\[") || text.includes("\\]")) return true;
+          if (text.includes("$$")) return true;
+          const dollarCount = (text.match(/\$/g) || []).length;
+          if (dollarCount >= 2) return true;
+          if (/\\(frac|dfrac|sqrt|begin|sum|int|alpha|beta|gamma|theta|pi|sigma)\b/.test(text)) return true;
+          return false;
+        };
+
+        for (const el of nodes) {
+          if (el.closest(".katex, .katex-display")) continue;
+          const style = window.getComputedStyle(el);
+          if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") continue;
+          const t = (el.textContent || "").trim();
+          if (mathSignal(t)) {
+            return false;
+          }
+        }
+        return true;
+      },
+      { timeout: 8000 }
+    );
+  } catch {
+    // Continue export even if we can't reliably detect overlays.
+  }
+
   return [browser, page];
 }
 
@@ -318,6 +361,12 @@ async function getAllChildElementsAttributes({
     if (
       ["style", "script", "link", "meta", "path"].includes(attributes.tagName)
     ) {
+      continue;
+    }
+
+    // Skip elements that are fully hidden in the browser (e.g. LaTeX source text hidden by LatexTextReplacer).
+    // If we include them, PPTX export may contain raw `$...$` instead of rendered math.
+    if (attributes.opacity !== undefined && attributes.opacity <= 0.001) {
       continue;
     }
 

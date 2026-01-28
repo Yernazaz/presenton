@@ -49,7 +49,7 @@ export class PresentationGenerationApi {
     }
   }
  
-   static async createPresentation({
+  static async createPresentation({
     content,
     n_slides,
     file_paths,
@@ -60,6 +60,10 @@ export class PresentationGenerationApi {
     include_table_of_contents,
     include_title_slide,
     web_search,
+    grade,
+    subject,
+    prompt_template_id,
+    disable_prompt_template,
     
   }: {
     content: string;
@@ -72,6 +76,10 @@ export class PresentationGenerationApi {
     include_table_of_contents?: boolean;
     include_title_slide?: boolean;
     web_search?: boolean;
+    grade?: number | null;
+    subject?: string | null;
+    prompt_template_id?: string | null;
+    disable_prompt_template?: boolean;
   }) {
     try {
       const response = await fetch(
@@ -90,6 +98,10 @@ export class PresentationGenerationApi {
             include_table_of_contents,
             include_title_slide,
             web_search,
+            grade,
+            subject,
+            prompt_template_id,
+            disable_prompt_template,
           }),
           cache: "no-cache",
         }

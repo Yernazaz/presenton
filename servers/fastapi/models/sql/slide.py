@@ -2,6 +2,9 @@ from typing import Optional
 import uuid
 from sqlalchemy import ForeignKey
 from sqlmodel import Field, Column, JSON, SQLModel
+from pydantic import field_serializer
+
+from utils.latex_sanitizer import sanitize_latex_escapes
 
 
 class SlideModel(SQLModel, table=True):
@@ -18,6 +21,10 @@ class SlideModel(SQLModel, table=True):
     html_content: Optional[str]
     speaker_note: Optional[str] = None
     properties: Optional[dict] = Field(sa_column=Column(JSON))
+
+    @field_serializer("content")
+    def _serialize_content(self, content: dict, _info):
+        return sanitize_latex_escapes(content)
 
     def get_new_slide(self, presentation: uuid.UUID, content: Optional[dict] = None):
         return SlideModel(

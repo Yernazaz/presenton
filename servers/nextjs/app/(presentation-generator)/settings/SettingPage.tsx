@@ -14,6 +14,8 @@ import LLMProviderSelection from "@/components/LLMSelection";
 import Header from "../dashboard/components/Header";
 import { LLMConfig } from "@/types/llm_config";
 import { trackEvent, MixpanelEvent } from "@/utils/mixpanel";
+import { TeacherTemplatesSettings } from "./components/TeacherTemplatesSettings";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 // Button state interface
 interface ButtonState {
@@ -142,54 +144,60 @@ const SettingsPage = () => {
     }
   }, [downloadingModel]);
 
-  useEffect(() => {
-    if (!canChangeKeys) {
-      router.push("/dashboard");
-    }
-  }, [canChangeKeys, router]);
-
-  if (!canChangeKeys) {
-    return null;
-  }
-
   return (
-    <div className="h-screen bg-gradient-to-b font-instrument_sans from-gray-50 to-white flex flex-col overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-b font-instrument_sans from-gray-50 to-white flex flex-col">
       <Header />
-      <main className="flex-1 container mx-auto px-4 max-w-3xl overflow-hidden flex flex-col">
-        {/* LLM Selection Component */}
-        <div className="flex-1 overflow-hidden">
-          <LLMProviderSelection
-            initialLLMConfig={llmConfig}
-            onConfigChange={setLlmConfig}
-            buttonState={buttonState}
-            setButtonState={setButtonState}
-          />
+      <main className="flex-1 container mx-auto px-4 max-w-3xl overflow-auto flex flex-col">
+        <div className={`flex flex-col gap-6 ${canChangeKeys ? "pb-28" : "pb-6"} pt-4`}>
+          {/* LLM Selection Component */}
+          {canChangeKeys ? (
+            <LLMProviderSelection
+              initialLLMConfig={llmConfig}
+              onConfigChange={setLlmConfig}
+              buttonState={buttonState}
+              setButtonState={setButtonState}
+            />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>LLM настройки</CardTitle>
+                <CardDescription>
+                  В этом режиме настройки ключей заблокированы (CAN_CHANGE_KEYS=false).
+                </CardDescription>
+              </CardHeader>
+              <CardContent />
+            </Card>
+          )}
+
+          <TeacherTemplatesSettings />
         </div>
       </main>
 
       {/* Fixed Bottom Button */}
-      <div className="flex-shrink-0 bg-white border-t border-gray-200 p-4">
-        <div className="container mx-auto max-w-3xl">
-          <button
-            onClick={handleSaveConfig}
-            disabled={buttonState.isDisabled}
-            className={`w-full font-semibold py-3 px-4 rounded-lg transition-all duration-500 ${
-              buttonState.isDisabled
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:ring-4 focus:ring-blue-200"
-            } text-white`}
-          >
-            {buttonState.isLoading ? (
-              <div className="flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {buttonState.text}
-              </div>
-            ) : (
-              buttonState.text
-            )}
-          </button>
+      {canChangeKeys && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
+          <div className="container mx-auto max-w-3xl">
+            <button
+              onClick={handleSaveConfig}
+              disabled={buttonState.isDisabled}
+              className={`w-full font-semibold py-3 px-4 rounded-lg transition-all duration-500 ${
+                buttonState.isDisabled
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:ring-4 focus:ring-blue-200"
+              } text-white`}
+            >
+              {buttonState.isLoading ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {buttonState.text}
+                </div>
+              ) : (
+                buttonState.text
+              )}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Download Progress Modal */}
       {showDownloadModal && downloadingModel && (

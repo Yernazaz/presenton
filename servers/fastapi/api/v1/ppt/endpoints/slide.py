@@ -6,6 +6,8 @@ import uuid
 from models.sql.presentation import PresentationModel
 from models.sql.slide import SlideModel
 from services.database import get_async_session
+from models.sql.teacher import TeacherModel
+from services.auth import get_optional_current_teacher
 from services.image_generation_service import ImageGenerationService
 from utils.asset_directory_utils import get_images_directory
 from utils.llm_calls.edit_slide import get_edited_slide_content
@@ -22,6 +24,7 @@ SLIDE_ROUTER = APIRouter(prefix="/slide", tags=["Slide"])
 async def edit_slide(
     id: Annotated[uuid.UUID, Body()],
     prompt: Annotated[str, Body()],
+    teacher: TeacherModel | None = Depends(get_optional_current_teacher),
     sql_session: AsyncSession = Depends(get_async_session),
 ):
     slide = await sql_session.get(SlideModel, id)
@@ -30,6 +33,8 @@ async def edit_slide(
     presentation = await sql_session.get(PresentationModel, slide.presentation)
     if not presentation:
         raise HTTPException(status_code=404, detail="Presentation not found")
+    if teacher and presentation.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Not your presentation")
 
     presentation_layout = presentation.get_layout()
     slide_layout = await get_slide_layout_from_prompt(
@@ -48,6 +53,7 @@ async def edit_slide(
         slide.content,
         edited_slide_content,
         language=presentation.language,
+        teacher_id=teacher.id if teacher else presentation.teacher_id,
     )
 
     # Always assign a new unique id to the slide

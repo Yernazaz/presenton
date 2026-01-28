@@ -1,4 +1,5 @@
 from typing import List, Literal, Optional
+import uuid
 from pydantic import BaseModel, Field
 
 from enums.tone import Tone
@@ -39,4 +40,17 @@ class GeneratePresentationRequest(BaseModel):
     )
     trigger_webhook: bool = Field(
         default=False, description="Whether to trigger subscribed webhooks"
+    )
+
+    # Optional education context (used to augment instructions).
+    grade: Optional[int] = Field(default=None, description="School grade 1..11")
+    subject: Optional[Literal["math", "physics", "biology", "literature"]] = Field(
+        default=None, description="School subject"
+    )
+    prompt_template_id: Optional[uuid.UUID] = Field(
+        default=None, description="Teacher prompt template id"
+    )
+    disable_prompt_template: bool = Field(
+        default=False,
+        description="If true, do not apply teacher prompt template even if a default is configured",
     )

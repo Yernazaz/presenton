@@ -60,6 +60,7 @@ from utils.schema_utils import (
     flatten_json_schema,
     remove_titles_from_schema,
 )
+from utils.latex_sanitizer import sanitize_latex_escapes
 
 
 class LLMClient:
@@ -562,7 +563,7 @@ class LLMClient:
                 )
         if content:
             if depth == 0:
-                return dict(dirtyjson.loads(content))
+                return sanitize_latex_escapes(dict(dirtyjson.loads(content)))
             return content
         return None
 
@@ -663,7 +664,7 @@ class LLMClient:
             )
 
         if text_content:
-            return dict(dirtyjson.loads(text_content))
+            return sanitize_latex_escapes(dict(dirtyjson.loads(text_content)))
         return None
 
     async def _generate_anthropic_structured(

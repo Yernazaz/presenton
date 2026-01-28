@@ -1,4 +1,5 @@
 import asyncio
+import tempfile
 from models.pptx_models import (
     PptxAutoShapeBoxModel,
     PptxFillModel,
@@ -17,10 +18,7 @@ pptx_model = PptxPresentationModel(
                 PptxAutoShapeBoxModel(
                     type=MSO_AUTO_SHAPE_TYPE.RECTANGLE,
                     position=PptxPositionModel(
-                        left=20,
-                        right=20,
-                        width=100,
-                        height=100,
+                        left=20, top=20, width=100, height=100
                     ),
                     fill=PptxFillModel(
                         color="000000",
@@ -34,7 +32,7 @@ pptx_model = PptxPresentationModel(
 
 
 def test_pptx_creator():
-    temp_dir = "/tmp/presenton"
+    temp_dir = tempfile.mkdtemp(prefix="presenton-test-")
     pptx_creator = PptxPresentationCreator(pptx_model, temp_dir)
     asyncio.run(pptx_creator.create_ppt())
-    pptx_creator.save("debug/test.pptx")
+    # Don't write artifacts during tests; we only verify it doesn't crash.

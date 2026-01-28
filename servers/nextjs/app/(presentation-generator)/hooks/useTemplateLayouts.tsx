@@ -78,41 +78,43 @@ export const useTemplateLayouts = () => {
             properties={slide.properties}
           >
             <TextStyleReplacer slideData={slide.content} properties={slide.properties}>
-              <TiptapTextReplacer
-                key={slide.id}
-                slideData={slide.content}
-                slideIndex={slide.index}
-                properties={slide.properties}
-                onContentChange={(
-                  content: string,
-                  dataPath: string,
-                  slideIndex?: number
-                ) => {
-                  if (dataPath && slideIndex !== undefined) {
-                    dispatch(
-                      updateSlideContent({
-                        slideIndex: slideIndex,
-                        dataPath: dataPath,
-                        content: content,
-                      })
-                    );
-                  }
-                }}
-                onTextStyleChange={(dataPath, style, slideIndex) => {
-                  if (!dataPath || slideIndex === undefined) return;
-                  dispatch(updateTextStyle({ slideIndex, dataPath, style }));
-                }}
-              >
-                <SlideErrorBoundary label={`Slide ${slide.index + 1}`}>
-                  {(Layout as any)
-                    ? React.createElement(Layout as any, {
-                        data: slide.content,
-                        isEditMode: true,
-                        slideIndex: slide.index,
-                      })
-                    : null}
-                </SlideErrorBoundary>
-              </TiptapTextReplacer>
+              <LatexTextReplacer slideData={slide.content}>
+                <TiptapTextReplacer
+                  key={slide.id}
+                  slideData={slide.content}
+                  slideIndex={slide.index}
+                  properties={slide.properties}
+                  onContentChange={(
+                    content: string,
+                    dataPath: string,
+                    slideIndex?: number
+                  ) => {
+                    if (dataPath && slideIndex !== undefined) {
+                      dispatch(
+                        updateSlideContent({
+                          slideIndex: slideIndex,
+                          dataPath: dataPath,
+                          content: content,
+                        })
+                      );
+                    }
+                  }}
+                  onTextStyleChange={(dataPath, style, slideIndex) => {
+                    if (!dataPath || slideIndex === undefined) return;
+                    dispatch(updateTextStyle({ slideIndex, dataPath, style }));
+                  }}
+                >
+                  <SlideErrorBoundary label={`Slide ${slide.index + 1}`}>
+                    {(Layout as any)
+                      ? React.createElement(Layout as any, {
+                          data: slide.content,
+                          isEditMode: true,
+                          slideIndex: slide.index,
+                        })
+                      : null}
+                  </SlideErrorBoundary>
+                </TiptapTextReplacer>
+              </LatexTextReplacer>
             </TextStyleReplacer>
           </EditableLayoutWrapper>
         );

@@ -52,6 +52,9 @@ function shouldSkipElement(element: HTMLElement): boolean {
   if (skipTags.has(tagName)) return true;
   if (element.closest(".katex")) return true;
   if (element.closest("[data-mdlatex-overlay-root='true']")) return true;
+  if (element.closest(".tiptap-text-editor")) return true;
+  if (element.closest("[data-tiptap-overlay-root='true']")) return true;
+  if (element.closest("[contenteditable='true']")) return true;
   return false;
 }
 
@@ -63,10 +66,17 @@ function isProbablyMarkdownOrLatex(text: string): boolean {
     text.includes("\\)") ||
     text.includes("\\[") ||
     text.includes("\\]") ||
+    text.includes("\\text") ||
     text.includes("\\frac") ||
     text.includes("\\dfrac") ||
     text.includes("\\sqrt") ||
     text.includes("\\begin") ||
+    text.includes("\\rightarrow") ||
+    text.includes("\\Rightarrow") ||
+    text.includes("\\leftarrow") ||
+    text.includes("\\uparrow") ||
+    text.includes("\\downarrow") ||
+    text.includes("\\beta") ||
     // Markdown-ish
     /(^|\s)[*_~`]/.test(text) ||
     /\[[^\]]+\]\([^)]+\)/.test(text) ||

@@ -23,6 +23,7 @@ const PresentationPage = ({ presentation_id }: { presentation_id: string }) => {
   const { renderSlideContent, loading } = useTemplateLayouts();
   const pathname = usePathname();
   const [contentLoading, setContentLoading] = useState(true);
+  const [tailwindReady, setTailwindReady] = useState(true);
   const { getCustomTemplateFonts } = useLayout()
   const dispatch = useDispatch();
   const { presentationData } = useSelector(
@@ -43,13 +44,52 @@ const PresentationPage = ({ presentation_id }: { presentation_id: string }) => {
         'script[src*="tailwindcss.com"]'
       );
       if (!existingScript) {
+        setTailwindReady(false);
         const script = document.createElement("script");
         script.src = "https://cdn.tailwindcss.com";
         script.async = true;
+        script.addEventListener("load", () => setTailwindReady(true), {
+          once: true,
+        });
+        script.addEventListener("error", () => setTailwindReady(true), {
+          once: true,
+        });
         document.head.appendChild(script);
+      } else {
+        setTailwindReady(true);
       }
     }
   }, [presentationData]);
+
+  // Signal to Puppeteer when the page is fully rendered (slides + fonts + optional Tailwind runtime).
+  useEffect(() => {
+    (window as any).__PRESENTON_PDF_READY__ = false;
+  }, []);
+
+  useEffect(() => {
+    const hasSlides = !!presentationData?.slides?.length;
+    const ready =
+      !error && hasSlides && !loading && !contentLoading && tailwindReady;
+    if (!ready) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        if (document.fonts?.ready) {
+          await document.fonts.ready;
+        }
+      } catch {
+        // best-effort
+      }
+      if (!cancelled) {
+        (window as any).__PRESENTON_PDF_READY__ = true;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [error, presentationData, loading, contentLoading, tailwindReady]);
   // Function to fetch the slides
   useEffect(() => {
     fetchUserSlides();
